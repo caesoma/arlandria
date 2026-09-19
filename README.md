@@ -39,8 +39,9 @@ $ "which 3 papers cover the in-vivo detection mechanism best?"
 
 ### Install
 
-**Prerequisites.** Node/Pi, plus [`uv`](https://docs.astral.sh/uv/) — the Python primitives
-self-bootstrap through it, so it is the only extra host requirement (no `pip`, no venv):
+**Prerequisites.** Node 22.19–24.x (Node 24 recommended), plus
+[`uv`](https://docs.astral.sh/uv/) — the Python primitives self-bootstrap through it
+(no `pip`, no venv). Arlandria includes Pi 0.85.1:
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -55,9 +56,17 @@ npm install -g arlandria
 ```
 
 `arlandria` prints the banner and launches Pi with the `callimachus` and `hypatia` skills and commands.
+It prefers its bundled Pi over any system installation.
+
+To run a checkout without a global installation:
+
+```bash
+npm ci
+npm start
+```
 
 
-**As a Pi package.** Arlandria can also be loaded by an existing Pi installation.
+**As a Pi package.** Arlandria can also be loaded by an existing Pi 0.85.1 installation.
 Add it to your Pi settings so both skills are discovered:
 
 ```json

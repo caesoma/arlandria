@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": ">=20.19.0 <25"
+    "node": ">=22.19.0 <25"
   },
   "bin": {
     "arlandria": "bin/arlandria.js"
@@ -53,14 +53,15 @@
     ]
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "^0.78.1",
+    "@earendil-works/pi-ai": "0.85.1",
+    "@earendil-works/pi-coding-agent": "0.85.1",
     "jiti": "2.7.0",
     "typebox": "1.1.38"
   },
   "devDependencies": {
     "@types/node": "24.12.4",
-    "eslint": "9.39.1",
+    "eslint": "10.0.3",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.48.0"
+    "typescript-eslint": "8.57.0"
   }
 }

@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Type } from "typebox";
+import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import {
-  createAgentSession, DefaultResourceLoader, defineTool, SessionManager, SettingsManager,
+  createAgentSession, DefaultResourceLoader, defineTool, ModelRuntime, SessionManager, SettingsManager,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { EvidenceSchema } from "./schema.js";
@@ -95,6 +96,42 @@ export async function isolatedOptions(snapshot: Snapshot) {
   };
 }
 
+export async function hypatiaModelRuntime(ctx: Pick<ExtensionContext, "model" | "modelRegistry" | "signal">) {
+  const { model, modelRegistry } = ctx;
+  if (!model) throw new Error("Choose a Pi model before running Hypatia");
+  const provider = modelRegistry.getProvider(model.provider);
+  if (!provider) throw new Error(`Unknown Pi provider: ${model.provider}`);
+  const runtime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(), modelsPath: null,
+    refreshOnCreate: false, allowModelNetwork: false, signal: ctx.signal,
+  });
+  runtime.registerNativeProvider({
+    id: provider.id, name: provider.name, baseUrl: provider.baseUrl, headers: provider.headers,
+    getModels: () => [model],
+    auth: {
+      apiKey: {
+        name: "Parent Pi session",
+        check: async () => modelRegistry.hasConfiguredAuth(model)
+          ? { type: modelRegistry.isUsingOAuth(model) ? "oauth" : "api_key" } : undefined,
+        resolve: async ({ signal }) => {
+          signal.throwIfAborted();
+          if (provider.auth.oauth && !await modelRegistry.getProviderAuth(model.provider))
+            throw new Error(`No API key found for "${model.provider}"`);
+          const auth = await modelRegistry.getApiKeyAndHeaders(model);
+          signal.throwIfAborted();
+          if (!auth.ok) throw new Error(auth.error);
+          return { auth: { apiKey: auth.apiKey, headers: auth.headers, baseUrl: auth.baseUrl }, env: auth.env };
+        },
+      },
+    },
+    stream: (selected, context, options) => provider.stream(selected, context, options),
+    streamSimple: (selected, context, options) => provider.streamSimple(selected, context, options),
+    fetchDeferred: provider.fetchDeferred?.bind(provider),
+    cancelDeferred: provider.cancelDeferred?.bind(provider),
+  });
+  return runtime;
+}
+
 export async function synthesize(snapshot: Snapshot, ctx: ExtensionContext): Promise<string | undefined> {
   if (ctx.signal?.aborted) throw new Error("Hypatia was cancelled");
   if (!ctx.model) throw new Error("Choose a Pi model before running Hypatia");
@@ -109,7 +146,7 @@ export async function synthesize(snapshot: Snapshot, ctx: ExtensionContext): Pro
   });
   const { session } = await createAgentSession({
     ...options, customTools, model: ctx.model,
-    modelRegistry: ctx.modelRegistry, authStorage: ctx.modelRegistry.authStorage,
+    modelRuntime: await hypatiaModelRuntime(ctx),
   });
   if (session.agent.state.tools.some(tool => !toolNames.includes(tool.name))) {
     session.dispose();

@@ -5,8 +5,9 @@ import { join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { createJiti } from "jiti";
+import { createAssistantMessageEventStream, InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import {
-  AgentSession, AuthStorage, DefaultResourceLoader, ModelRegistry,
+  AgentSession, DefaultResourceLoader, ModelRegistry, ModelRuntime,
   SettingsManager, createAgentSession, loadSkillsFromDir,
 } from "@earendil-works/pi-coding-agent";
 
@@ -19,7 +20,7 @@ const jiti = createJiti(import.meta.url);
 const { approveGate, gateFingerprint, finalize, loadSnapshot } = await jiti.import("../extensions/hypatia/handoff.ts");
 const { validateEvidence, saveEvidence, evidenceDirectory, loadEvidence } = await jiti.import("../extensions/hypatia/evidence.ts");
 const { render, shortlist } = await jiti.import("../extensions/hypatia/render.ts");
-const { restrictedTools, isolatedOptions, toolNames } = await jiti.import("../extensions/hypatia/runtime.ts");
+const { restrictedTools, isolatedOptions, hypatiaModelRuntime, toolNames } = await jiti.import("../extensions/hypatia/runtime.ts");
 const { hash, json, inside } = await jiti.import("../extensions/hypatia/storage.ts");
 const { default: extension, pauseRequest } = await jiti.import("../extensions/hypatia/index.ts");
 const { default: callimachus } = await jiti.import("../extensions/callimachus/index.ts");
@@ -27,6 +28,33 @@ const { default: callimachus } = await jiti.import("../extensions/callimachus/in
 const text = "We found an association, not causation. Rural settings remain untested. Future work should evaluate rural clinics.";
 const writeJson = (path, value) => writeFileSync(path, json(value));
 const readJson = path => JSON.parse(readFileSync(path, "utf8"));
+
+async function modelFixture(auth, credentials = new InMemoryCredentialStore()) {
+  const model = {
+    id: "fixture", name: "Fixture model", provider: "hypatia-fixture", api: "openai-completions",
+    baseUrl: "https://fixture.invalid", reasoning: false, input: ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 8192, maxTokens: 512,
+  };
+  const requests = [];
+  const stream = (selected, context, options) => {
+    requests.push({ model: selected, context, options });
+    const events = createAssistantMessageEventStream();
+    events.push({ type: "done", reason: "stop", message: {
+      role: "assistant", content: [{ type: "text", text: "Fixture response." }],
+      api: selected.api, provider: selected.provider, model: selected.id, stopReason: "stop", timestamp: Date.now(),
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+    } });
+    events.end();
+    return events;
+  };
+  const runtime = await ModelRuntime.create({ credentials, modelsPath: null, refreshOnCreate: false });
+  runtime.registerNativeProvider({
+    id: model.provider, name: "Fixture provider", auth, getModels: () => [model], stream, streamSimple: stream,
+  });
+  await runtime.refresh({ allowNetwork: false, providers: [model.provider] });
+  return { runtime, model, modelRegistry: new ModelRegistry(runtime), requests };
+}
 
 test("Pi discovers exactly Callimachus and Hypatia with their commands and prompt", async () => {
   const loader = new DefaultResourceLoader({
@@ -279,9 +307,11 @@ test("actual Pi SDK session exposes only mediated tools and loads no ambient res
   mkdirSync(join(cwd, ".pi/extensions"), { recursive: true });
   writeFileSync(join(cwd, ".pi/extensions/injected.js"), "throw new Error('must not load')");
   const options = await isolatedOptions(snapshot);
-  const authStorage = AuthStorage.inMemory();
+  const modelRuntime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(), modelsPath: null, refreshOnCreate: false,
+  });
   const { session } = await createAgentSession({
-    ...options, authStorage, modelRegistry: ModelRegistry.inMemory(authStorage),
+    ...options, modelRuntime,
     customTools: restrictedTools(snapshot, () => {}),
   });
   try {
@@ -291,6 +321,102 @@ test("actual Pi SDK session exposes only mediated tools and loads no ambient res
     assert.equal(options.resourceLoader.getSkills().skills.length, 0);
     assert.equal(options.resourceLoader.getAgentsFiles().agentsFiles.length, 0);
   } finally { session.dispose(); }
+});
+
+test("child SDK requests inherit changing parent keys, headers, endpoints and provider env", async () => {
+  const parent = await modelFixture({ apiKey: {
+    name: "Fixture key",
+    resolve: async ({ credential }) => credential?.key ? {
+      auth: { apiKey: credential.key, headers: { "x-project": "fixture" }, baseUrl: "https://request.invalid" },
+      env: { FIXTURE_REGION: "local" },
+    } : undefined,
+  } });
+  await parent.runtime.setRuntimeApiKey(parent.model.provider, "first-test-key");
+  const modelRuntime = await hypatiaModelRuntime(parent);
+  const { snapshot } = fixture();
+  const { session } = await createAgentSession({
+    ...await isolatedOptions(snapshot), model: parent.model, modelRuntime,
+    customTools: restrictedTools(snapshot, () => {}),
+  });
+  try {
+    await session.prompt("Respond using the fixture provider.");
+    await parent.runtime.setRuntimeApiKey(parent.model.provider, "second-test-key");
+    await session.prompt("Respond again.");
+    assert.equal(session.agent.state.errorMessage, undefined);
+    assert.deepEqual(parent.requests.map(r => r.options.apiKey), ["first-test-key", "second-test-key"]);
+    for (const request of parent.requests) {
+      assert.equal(request.options.headers["x-project"], "fixture");
+      assert.equal(request.options.env.FIXTURE_REGION, "local");
+      assert.equal(request.model.baseUrl, "https://request.invalid");
+      assert.deepEqual(request.context.tools.map(t => t.name).sort(), [...toolNames].sort());
+    }
+    assert.deepEqual(await modelRuntime.listCredentials(), []);
+  } finally { session.dispose(); }
+});
+
+test("child auth refreshes OAuth through the parent store without retaining tokens", async () => {
+  const credentials = new InMemoryCredentialStore();
+  await credentials.modify("hypatia-fixture", async () => ({
+    type: "oauth", access: "expired-test-token", refresh: "test-refresh-token", expires: 0,
+  }));
+  let refreshes = 0;
+  const parent = await modelFixture({ oauth: {
+    name: "Fixture OAuth",
+    login: async () => { throw new Error("Login must remain in the parent"); },
+    refresh: async credential => ({
+      ...credential, access: `refreshed-test-token-${++refreshes}`, expires: Date.now() + 3600000,
+    }),
+    toAuth: async credential => ({ apiKey: credential.access, headers: { "x-oauth": "fixture" } }),
+  } }, credentials);
+  const runtime = await hypatiaModelRuntime(parent);
+  const first = await runtime.getAuth(parent.model);
+  assert.equal(first.auth.apiKey, "refreshed-test-token-1");
+  assert.equal(first.auth.headers["x-oauth"], "fixture");
+  await credentials.modify(parent.model.provider, async credential => ({ ...credential, expires: 0 }));
+  assert.equal((await runtime.getAuth(parent.model)).auth.apiKey, "refreshed-test-token-2");
+  assert.equal((await credentials.read(parent.model.provider)).access, "refreshed-test-token-2");
+  assert.deepEqual(await runtime.listCredentials(), []);
+  await credentials.delete(parent.model.provider);
+  await assert.rejects(runtime.getAuth(parent.model), /No API key found/);
+});
+
+test("child auth preserves configured model headers for a keyless custom provider", async () => {
+  const parent = await modelFixture({ apiKey: { name: "Local", resolve: async () => ({ auth: {} }) } });
+  const provider = parent.modelRegistry.getProvider(parent.model.provider);
+  parent.runtime.registerProvider(parent.model.provider, {
+    api: parent.model.api, baseUrl: parent.model.baseUrl, authHeader: false,
+    headers: { "x-provider": "configured" },
+    models: [{ ...parent.model, headers: { "x-model": "selected" } }],
+    streamSimple: provider.streamSimple.bind(provider),
+  });
+  const runtime = await hypatiaModelRuntime(parent);
+  const auth = await runtime.getAuth(parent.model);
+  assert.equal(auth.auth.apiKey, undefined);
+  assert.equal(auth.auth.headers["x-provider"], "configured");
+  assert.equal(auth.auth.headers["x-model"], "selected");
+  await runtime.completeSimple(parent.model, { messages: [] });
+  assert.equal(parent.requests.length, 1);
+  assert.equal(parent.requests[0].options.headers["x-model"], "selected");
+});
+
+test("child auth cancels pending parent resolution and never falls back after failure", async t => {
+  const parent = await modelFixture({ apiKey: {
+    name: "Fixture", resolve: async () => ({ auth: { apiKey: "fixture-test-key" } }),
+  } });
+  const runtime = await hypatiaModelRuntime(parent);
+  t.mock.method(parent.modelRegistry, "getApiKeyAndHeaders", async () => ({ ok: false, error: "Parent auth failed" }));
+  await assert.rejects(runtime.getAuth(parent.model), /Parent auth failed/);
+  let started;
+  const pending = new Promise(resolve => { started = resolve; });
+  t.mock.method(parent.modelRegistry, "getApiKeyAndHeaders", () => {
+    started();
+    return new Promise(() => {});
+  });
+  const controller = new AbortController();
+  const request = runtime.getAuth(parent.model, { signal: controller.signal });
+  await pending;
+  controller.abort();
+  await assert.rejects(request, /abort/i);
 });
 
 test("refresh request suspends every synthesis tool; no shell, search, or upstream writer exists", async () => {
@@ -370,8 +496,10 @@ test("transport failure after a refresh tool call never releases the old snapsho
   });
   const commands = new Map();
   const notices = [];
-  const authStorage = AuthStorage.inMemory();
-  const modelRegistry = ModelRegistry.inMemory(authStorage);
+  const modelRuntime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(), modelsPath: null, refreshOnCreate: false,
+  });
+  const modelRegistry = new ModelRegistry(modelRuntime);
   extension({ registerCommand: (name, value) => commands.set(name, value), registerTool: () => {}, sendUserMessage: () => {} });
   const ctx = { cwd: sandbox, hasUI: false, modelRegistry, model: modelRegistry.getAll()[0],
     ui: { notify: message => notices.push(message), setStatus: () => {} } };
