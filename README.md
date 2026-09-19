@@ -197,7 +197,10 @@ The Python suite measures lines and branches, includes subprocesses, and enforce
 `npm test` also reports coverage for the Pi extensions. Installer tests mock Node,
 uv, and npm so no packages are installed; PowerShell checks run when `pwsh` or
 `powershell` is available and otherwise report an explicit skip.
-Native Windows behavior still requires testing on Windows.
+The [CI workflow](.github/workflows/checks.yml) runs the complete check command on
+Ubuntu 24.04 and native Windows Server 2022 with Node 24 and Python 3.11.
+Windows runs the PowerShell installer tests; the POSIX installer and shebang-based
+global-Pi fixture run on Linux.
 A live literature run additionally
 requires the researcher's Pi model authentication, search credentials, papers,
 and human gate decisions.

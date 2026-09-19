@@ -88,8 +88,8 @@ class OutputTests(Sandbox):
         for name in ("slides.tex", "report.md", "brief.md"):
             content = (output / name).read_text(encoding="utf-8")
             self.assertIn("uncertain", content)
-        self.assertIn("unreadable", (output / "slides.tex").read_text())
-        self.assertIn("No resources supplied", (output / "report.md").read_text())
+        self.assertIn("unreadable", (output / "slides.tex").read_text(encoding="utf-8"))
+        self.assertIn("No resources supplied", (output / "report.md").read_text(encoding="utf-8"))
         document["claims"] = []
         document["source_reviews"][0].update(status="reviewed")
         evidence.save_evidence(snapshot, document)
@@ -199,7 +199,7 @@ class CliTests(Sandbox):
         evidence.save_context(snapshot, context)
         evidence.save_evidence(snapshot, revised)
         directory = Path(render.render(snapshot))
-        report = (directory / "report.md").read_text()
+        report = (directory / "report.md").read_text(encoding="utf-8")
         self.assertIn("**unknown**", report)
         self.assertIn("No directions can currently be shortlisted", report)
         self.assertIn("Unknowns: Cost", report)

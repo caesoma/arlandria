@@ -18,9 +18,16 @@ import {
 
 const sandbox = mkdtempSync(join(homedir(), ".hypatia-tests-"));
 // Keep signing keys and SDK discovery isolated from the developer's real home.
-const originalHome = process.env.HOME;
+const originalHome = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE };
 process.env.HOME = sandbox;
-after(() => { process.env.HOME = originalHome; rmSync(sandbox, { recursive: true }); });
+process.env.USERPROFILE = sandbox;
+after(() => {
+  for (const [name, value] of Object.entries(originalHome)) {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
+  rmSync(sandbox, { recursive: true });
+});
 const jiti = createJiti(import.meta.url);
 const { restrictedTools, isolatedOptions, hypatiaModelRuntime, toolNames } = await jiti.import("../extensions/hypatia/runtime.ts");
 const { default: extension, pauseRequest } = await jiti.import("../extensions/hypatia/index.ts");
@@ -357,8 +364,8 @@ test("fulltext artifacts, source changes and new revisions invalidate synthesis"
 test("absolute paths, traversal and symlinks never expose external artifacts", () => {
   const { root } = fixture({ completed: false });
   assert.throws(() => inside(root, "../secret"), /escapes/);
-  assert.throws(() => inside(root, "/etc/passwd"), /relative/);
-  symlinkSync(sandbox, join(root, "outside"));
+  assert.throws(() => inside(root, join(sandbox, "secret")), /relative/);
+  symlinkSync(sandbox, join(root, "outside"), "dir");
   assert.throws(() => inside(root, "outside/secret"), /Symlinks/);
 });
 
@@ -603,7 +610,7 @@ test("interrupted synthesis preserves its upstream refresh requirement across se
 test("bundled CLI launches outside the repository without a global pi or npm PATH", () => {
   const result = spawnSync(process.execPath, [resolve("bin/arlandria.js"), "--offline", "--version"], {
     cwd: sandbox, encoding: "utf8",
-    env: { ...process.env, PATH: "/usr/bin:/bin", CALLIMACHUS_SKIP_UV_CHECK: "1", CALLIMACHUS_QUIET: "1" },
+    env: { ...process.env, PATH: "", CALLIMACHUS_SKIP_UV_CHECK: "1", CALLIMACHUS_QUIET: "1" },
   });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout + result.stderr, /^\d+\.\d+\.\d+\s*$/);

@@ -59,13 +59,13 @@ class StandaloneHypatiaTests(unittest.TestCase):
             env={**os.environ, "PATH": ""},
         )
         output = Path(json.loads(result.stdout))
-        self.assertEqual((output / "slides.tex").read_text().count(r"\begin{frame}"), 6)
-        self.assertIn("No supported findings", (output / "report.md").read_text())
+        self.assertEqual((output / "slides.tex").read_text(encoding="utf-8").count(r"\begin{frame}"), 6)
+        self.assertIn("No supported findings", (output / "report.md").read_text(encoding="utf-8"))
         context["audience"] = "Different audience"
         execute("context-save", self.review, revision, context)
         second = execute("render", self.review, revision, {})
         self.assertNotEqual(str(output), second)
-        self.assertIn("Audience: Peers", (output / "report.md").read_text())
+        self.assertIn("Audience: Peers", (output / "report.md").read_text(encoding="utf-8"))
         self.assertEqual(original, (self.review / "ledger.json").read_bytes())
         self.assertEqual(json.loads((output / "evidence.json").read_bytes()), evidence)
 
