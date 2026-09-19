@@ -906,6 +906,24 @@ test("model setup rejects unknown providers and synthesis handles pre-cancellati
   assert.equal(readJson(join(root, ".hypatia/request.json")).status, "paused");
 });
 
+test("an unregistered Pi model gives login and selection guidance without publishing", async () => {
+  const { root, snapshot } = fixture();
+  const harness = commandHarness();
+  const runtime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(), modelsPath: null, refreshOnCreate: false,
+  });
+  const ctx = { ...harness.ctx, model: { id: "unknown", provider: "unknown" },
+    modelRegistry: new ModelRegistry(runtime) };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await harness.commands.get("hypatia").handler(root, ctx);
+    assert.equal(harness.notices.at(-1).level, "error");
+    assert.match(harness.notices.at(-1).message, /^Choose a Pi model.*\/login.*\/model/);
+    assert.equal(readJson(join(root, ".hypatia/request.json")).status, "paused");
+    assert.equal(existsSync(join(evidenceDirectory(snapshot), "delivery.json")), false);
+  }
+  assert.deepEqual(harness.messages, []);
+});
+
 test("in-flight cancellation aborts Pi and a second synthesis cannot enter the active review", { timeout: 30000 }, async t => {
   const { root, snapshot } = fixture();
   const harness = commandHarness();

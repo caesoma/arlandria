@@ -89,7 +89,7 @@ export async function hypatiaModelRuntime(ctx: Pick<ExtensionContext, "model" | 
   const { model, modelRegistry } = ctx;
   if (!model) throw new Error("Choose a Pi model before running Hypatia");
   const provider = modelRegistry.getProvider(model.provider);
-  if (!provider) throw new Error(`Unknown Pi provider: ${model.provider}`);
+  if (!provider) throw new Error(`Choose a Pi model before running Hypatia (/login, then /model). Unknown Pi provider: ${model.provider}`);
   const runtime = await ModelRuntime.create({
     credentials: new InMemoryCredentialStore(), modelsPath: null,
     refreshOnCreate: false, allowModelNetwork: false, signal: ctx.signal,
