@@ -1,14 +1,11 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-// Callimachus registers two first-class slash commands as aliases for one
-// workflow, so you type `/litreview` or `/literature-review` instead of
-// `/skill:literature-review`. The command kicks the agent off on the skill's
-// 9-step loop; the workflow itself lives in skills/literature-review/SKILL.md.
+// `/callimachus` starts the workflow in skills/callimachus/SKILL.md.
 
 function kickoff(args: string): string {
   const q = args.trim();
   return [
-    'Load the "literature-review" skill (read its SKILL.md) and follow its 9-step workflow.',
+    'Load the "callimachus" skill (read its SKILL.md) and follow its 9-step workflow.',
     q
       ? `Research question / instruction: ${q}`
       : "If I have not given a research question yet, ask me for one before doing anything else.",
@@ -29,6 +26,5 @@ export default function callimachus(pi: ExtensionAPI): void {
       pi.sendUserMessage(kickoff(args), { deliverAs: "followUp" });
     },
   };
-  pi.registerCommand("litreview", definition);
-  pi.registerCommand("literature-review", definition);
+  pi.registerCommand("callimachus", definition);
 }

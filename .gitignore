@@ -7,6 +7,6 @@ outputs/
 
 # Review folders live at the chosen base (external by default, e.g. ~/arlandria-reviews).
 # Also ignore the in-package / legacy review artifacts so review data is never committed.
-skills/literature-review/references.bib
-skills/literature-review/references.csv
-skills/literature-review/results_*.json
+skills/callimachus/references.bib
+skills/callimachus/references.csv
+skills/callimachus/results_*.json

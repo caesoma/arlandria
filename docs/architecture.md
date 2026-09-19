@@ -1,6 +1,7 @@
-# Architecture — how Callimachus is plumbed together
+# Architecture — Callimachus and Hypatia
 
-Callimachus is a [Pi](https://pi.dev) package that adds a semi-automated `literature-review` skill.
+Arlandria is a [Pi](https://pi.dev) package with exactly two skills:
+`callimachus` for the literature review and `hypatia` for synthesis of its completed results.
 This document is the map: what the pieces are, how they connect, and how a request flows from a typed
 question to a BibTeX file.
 
@@ -16,7 +17,7 @@ ledger**, `<base>/<slug>/ledger.json` (one self-contained folder per review) —
 research question
       │
       ▼
-  Pi's LLM ──reads──▶ skills/literature-review/SKILL.md   (the 9-step workflow)
+  Pi's LLM ──reads──▶ skills/callimachus/SKILL.md   (the 9-step workflow)
       │
       │ calls via `bash`
       ▼
@@ -31,26 +32,26 @@ research question
 The package declares its Pi contributions in [`package.json`](../package.json) under the `"pi"` key:
 
 ```json
-"pi": { "skills": ["./skills"], "prompts": ["./prompts"], "extensions": ["./extensions"] }
+"pi": { "skills": ["./skills/callimachus", "./skills/hypatia"], "prompts": ["./prompts"], "extensions": ["./extensions"] }
 ```
 
-When Pi loads `callimachus` as a package (`{ "packages": ["npm:callimachus"] }` in the user's Pi
-settings), it auto-discovers the skill, the `/litreview` prompt, and the slash-command extension.
+When Pi loads `arlandria` as a package (`{ "packages": ["npm:arlandria"] }` in the user's Pi
+settings), it loads both skills, the `/callimachus` prompt, and their command extensions.
 
 There are two ways to run it:
 
 - **As a Pi package** — add it to Pi settings; then just talk to `pi`.
-- **As a branded CLI** — the `cal` / `callimachus` launcher
-  ([`bin/callimachus.js`](../bin/callimachus.js)) prints the banner and spawns Pi with the skill and
-  extension already on the path:
+- **As a branded CLI** — the `arlandria` launcher
+  ([`bin/arlandria.js`](../bin/arlandria.js)) prints the banner and spawns Pi with both skills and
+  extensions already on the path:
 
   ```
-  pi -e extensions/litreview/index.ts --skill skills/literature-review  …
+  pi -e extensions/callimachus/index.ts -e extensions/hypatia/index.ts --skill skills/callimachus --skill skills/hypatia …
   ```
 
   It prefers the Pi binary bundled as a dependency and falls back to a global `pi`.
 
-The `.callimachus/` directory (`SYSTEM.md` + `settings.json`) is the rebranded Pi config dir — Pi's
+The `.arlandria/` directory (`SYSTEM.md` + `settings.json`) is the rebranded Pi config dir — Pi's
 normal `.pi/` settings under the Callimachus name. `SYSTEM.md` is the standing system instruction
 ("you are a literature-review assistant…"); `settings.json` holds Pi harness settings (`packages`,
 `quietStartup`, `collapseChangelog`).
@@ -59,19 +60,54 @@ normal `.pi/` settings under the Callimachus name. `SYSTEM.md` is the standing s
 
 | Piece | Path | Role |
 |------|------|------|
-| Launcher | [`bin/callimachus.js`](../bin/callimachus.js) | Branded entry point (`cal`); banner, then hands off to Pi. |
-| Extension | [`extensions/litreview/index.ts`](../extensions/litreview/index.ts) | Registers the `/litreview` and `/literature-review` slash commands; kicks the LLM into the skill's workflow. |
-| Prompt | [`prompts/litreview.md`](../prompts/litreview.md) | The `/litreview` slash-command body — disciplines + handoff to the skill. |
-| Skill | [`skills/literature-review/SKILL.md`](../skills/literature-review/SKILL.md) | **The workflow** the LLM follows: the 9-step loop, the interactive gates, the screening discipline. |
-| Tools | [`skills/literature-review/scripts/`](../skills/literature-review/scripts/) | The deterministic Python I/O scripts (below). |
-| Schema | [`skills/literature-review/references/ledger_schema.md`](../skills/literature-review/references/ledger_schema.md) | The ledger's JSON contract + invariants. |
+| Launcher | [`bin/arlandria.js`](../bin/arlandria.js) | Branded entry point (`arlandria`); banner, then hands off to Pi. |
+| Callimachus extension | [`extensions/callimachus/index.ts`](../extensions/callimachus/index.ts) | Registers `/callimachus`; kicks the LLM into the review workflow. |
+| Hypatia extension | [`extensions/hypatia/index.ts`](../extensions/hypatia/index.ts) | Registers `/hypatia` and `/callimachus-approve`; enforces the completed-review prerequisite. |
+| Prompt | [`prompts/callimachus.md`](../prompts/callimachus.md) | The `/callimachus` slash-command body — disciplines + handoff to the skill. |
+| Callimachus skill | [`skills/callimachus/SKILL.md`](../skills/callimachus/SKILL.md) | The 9-step loop, interactive gates, and screening discipline. |
+| Hypatia skill | [`skills/hypatia/SKILL.md`](../skills/hypatia/SKILL.md) | Findings, gaps, and literature-backed opportunities from completed reviews. |
+| Tools | [`skills/callimachus/scripts/`](../skills/callimachus/scripts/) | The deterministic Python I/O scripts (below). |
+| Schema | [`skills/callimachus/references/ledger_schema.md`](../skills/callimachus/references/ledger_schema.md) | The ledger's JSON contract + invariants. |
 | Ledger | `<base>/<slug>/ledger.json` (runtime) | Durable per-review state in one self-contained folder; the single source of truth. |
 
-The extension is the only TypeScript; Pi loads it directly via `jiti`, so there is no build step.
+Pi loads the TypeScript extensions directly via `jiti`, so there is no build step.
+
+## Hypatia downstream boundary
+
+The Arlandria launcher also loads `extensions/hypatia/index.ts` and
+`skills/hypatia/`. Callimachus still owns every research stage, including
+full-text acquisition and human curation:
+
+```text
+Callimachus ledger + sources.json + human gate approvals
+    → finalizer → .callimachus/completed/<revision>/handoff.json
+    → isolated Hypatia session → validated evidence → Markdown / SVG / audit
+```
+
+The early step-8 export is non-terminal. `/callimachus-approve curation` checks
+criteria/triage approvals, search audit entries, screening, and final human
+dispositions before publishing a sealed, versioned snapshot with source hashes.
+Changing upstream evidence invalidates the handoff until Callimachus completes
+again.
+
+`/hypatia <folder>` starts a Pi SDK session with only five mediated tools:
+snapshot read, page read, evidence save, render, and request Callimachus. Its
+resource loader inherits no extensions, skills, prompts, or project context.
+The tool allowlist has no shell, arbitrary file access, search, downloader, or
+upstream writer. The parent session retains Callimachus's normal capabilities.
+
+Evidence is stored separately under `.hypatia/<revision>/`, with historical
+digests. Quotes are checked against their page, while semantic support remains
+an explicit assessment. Author gap/limitation claims support gaps; author
+direction claims support opportunities; researcher-provided resources constrain
+feasibility. Reports and visuals use the same validated evidence and context.
+Refresh requests suspend synthesis until a new completed revision exists.
+See [the contracts](../skills/hypatia/references/contracts.md) for schemas,
+approval commands, access limitations, and local trust assumptions.
 
 ## The scripts (deterministic tools, called via `bash`)
 
-All live in `skills/literature-review/scripts/` and share [`_common.py`](../skills/literature-review/scripts/_common.py).
+All live in `skills/callimachus/scripts/` and share [`_common.py`](../skills/callimachus/scripts/_common.py).
 They are **self-bootstrapping**: each carries its dependencies inline (PEP 723) and is run with
 `uv run <script>`, which provisions a cached per-script environment — there is no `pip install` and no
 venv. The LLM always invokes them as `uv run scripts/X.py …`; a bare `python` run has no deps and
@@ -89,7 +125,7 @@ fails. `uv` is the only host prerequisite besides Node/Pi (the launcher prefligh
 
 ## Control flow (the 9-step loop, abridged)
 
-1. Researcher states a question (chat, or `/litreview <question>`).
+1. Researcher states a question (chat, or `/callimachus <question>`).
 2. **Criteria gate** — LLM drafts include/exclude criteria and exchanges with the researcher; on release, `ledger.py criteria`.
 3. **Query** — LLM writes query variants; runs `search.py --source … --query …` per (source × query).
 4. **Pool** — `dedupe.py` merges every result file into the ledger.
@@ -112,7 +148,7 @@ deliberately decoupled: the list ships fast; reading happens later and never blo
   via `_common.ledger_entry()`, minting the stable `id` (lowercased DOI, else a title hash) and the
   empty screening/assessment blocks. Search output stays lean; screening state lives only in the ledger.
 - **The ledger** — `<base>/<slug>/ledger.json`. Full schema and invariants in
-  [`references/ledger_schema.md`](../skills/literature-review/references/ledger_schema.md). Key rules:
+  [`references/ledger_schema.md`](../skills/callimachus/references/ledger_schema.md). Key rules:
   records are never deleted; `ledger.py` is the only writer of `criteria`/`screening`/`status`;
   **human decisions are locked** against LLM re-screens (the LLM's overridden call is retained in
   `proposed`); `stats` is derived and recomputed on every write. A review-level `exchanges[]` log
