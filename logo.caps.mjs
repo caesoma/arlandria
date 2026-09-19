@@ -1,16 +1,7 @@
-// ΚΑΛΛΙΜΑΧΟΣ — uppercase Greek (ansi_regular block lettering)
-// Six letters reuse ansi_regular (Κ Α Ι Μ Ο Χ = K A I M O X); only Λ and Σ are hand-drawn.
-// Preview:  node logo.caps.mjs
-export const banner = String.raw`
-██   ██  █████     ██      ██   ██ ███    ███  █████  ██   ██  ██████  ███████
-██  ██  ██   ██   ████    ████  ██ ████  ████ ██   ██  ██ ██  ██    ██ ███
-█████   ███████  ██ ██   ██ ██  ██ ██ ████ ██ ███████   ███   ██    ██   ███
-██  ██  ██   ██ ██   ██ ██   ██ ██ ██  ██  ██ ██   ██  ██ ██  ██    ██ ███
-██   ██ ██   ██ ██   ██ ██   ██ ██ ██      ██ ██   ██ ██   ██  ██████  ███████
-`;
+import { fileURLToPath } from "node:url";
+import logo from "./logo.mjs";
 
-export default banner;
+export * from "./logo.mjs";
+export default logo;
 
-// print when run directly
-import { fileURLToPath } from 'node:url';
-if (process.argv[1] === fileURLToPath(import.meta.url)) console.log(banner);
+if (process.argv[1] === fileURLToPath(import.meta.url)) console.log(logo);

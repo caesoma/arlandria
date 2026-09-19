@@ -10,9 +10,9 @@ import { existsSync, readFileSync } from "node:fs";
 const here = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(here, "..");
 
-const { CALLIMACHUS_ASCII_LOGO_TEXT } = await import(pathToFileURL(join(pkgRoot, "logo.mjs")).href);
+const { ARLANDRIA_ASCII_LOGO_TEXT } = await import(pathToFileURL(join(pkgRoot, "logo.mjs")).href);
 if (!process.env.CALLIMACHUS_QUIET) {
-  console.log("\n" + CALLIMACHUS_ASCII_LOGO_TEXT + "\n");
+  console.log("\n" + ARLANDRIA_ASCII_LOGO_TEXT + "\n");
 }
 
 // Prefer the Pi binary bundled as our dependency; fall back to a global `pi`.
