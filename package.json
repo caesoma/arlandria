@@ -1,0 +1,54 @@
+{
+  "name": "arlandria",
+  "version": "0.2.0",
+  "description": "Arlandria - semi-automated literature-review agent and Pi package",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0 <25"
+  },
+  "bin": {
+    "arlandria": "bin/arlandria.js",
+    "cal": "bin/arlandria.js"
+  },
+  "files": [
+    "bin/",
+    "skills/",
+    "prompts/",
+    "extensions/",
+    ".arlandria/settings.json",
+    ".arlandria/SYSTEM.md",
+    "logo.mjs",
+    "logo.d.mts",
+    "scripts/check-node-version.mjs",
+    "scripts/install/",
+    "AGENTS.md",
+    "README.md",
+    ".env.example"
+  ],
+  "scripts": {
+    "preinstall": "node ./scripts/check-node-version.mjs",
+    "start": "node ./bin/arlandria.js"
+  },
+  "keywords": [
+    "pi-package",
+    "literature-review",
+    "research-agent",
+    "pubmed",
+    "openalex"
+  ],
+  "pi": {
+    "skills": [
+      "./skills"
+    ],
+    "prompts": [
+      "./prompts"
+    ],
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "^0.78.1"
+  }
+}
