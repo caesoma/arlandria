@@ -59,7 +59,7 @@ export function restrictedTools(snapshot: Snapshot, onRefresh: (reason: string) 
     }),
     defineTool({
       name: "hypatia_render", label: "Render report",
-      description: "Render Markdown, presentation brief, SVGs and audit from validated evidence. All sources must be reviewed or explicitly unreadable.",
+      description: "Render Markdown, presentation brief, six-slide LaTeX Beamer deck, SVGs and audit from validated evidence. All sources must be reviewed or explicitly unreadable.",
       parameters: Type.Object({}),
       execute: async () => {
         checked();

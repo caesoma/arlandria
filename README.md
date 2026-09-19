@@ -137,8 +137,11 @@ The bundled launcher and Pi package expose:
 /hypatia question What does the literature establish about ...?
 ```
 
-Hypatia produces a cited Markdown report, presentation brief, SVG evidence and
-opportunity matrices, gap-to-direction diagram, and review-flow visual. Findings
+Hypatia produces a cited Markdown report, presentation brief, a minimal six-slide
+LaTeX Beamer deck, SVG evidence and opportunity matrices, gap-to-direction diagram,
+and review-flow visual. The deck summarizes the approved Callimachus criteria and
+Hypatia's findings, gaps, feasibility, and limitations. Its standalone `slides.tex`
+can be compiled with LuaLaTeX; generating it requires no TeX installation. Findings
 and research directions trace to exact passages. Feasibility uses the researcher's
 stated resources; an empty low-effort shortlist is a valid result.
 

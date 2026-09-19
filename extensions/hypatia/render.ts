@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { evidenceDigest, evidenceDirectory, loadContext, loadEvidence, validateDelivery } from "./evidence.js";
 import { loadSnapshot, type Snapshot } from "./handoff.js";
-import { atomicWrite, inside, json } from "./storage.js";
+import { atomicWrite, hash, inside, json } from "./storage.js";
 import type { Evidence, ResearchContext } from "./schema.js";
 
 const md = (value: string) => value.replace(/[\\`*_{}[\]()<>#|!]/g, "\\$&").replace(/\r?\n/g, " ");
@@ -17,6 +17,104 @@ export function shortlist(evidence: Evidence) {
 
 function opportunityText(evidence: Evidence, opportunity: Evidence["opportunities"][number]): string {
   return opportunity.direction_claim_ids.map(id => evidence.claims.find(c => c.id === id)!.statement).join("; ");
+}
+
+const texEscapes: Record<string, string> = {
+  "\\": "\\textbackslash{}", "{": "\\{", "}": "\\}", "$": "\\$", "&": "\\&",
+  "#": "\\#", "%": "\\%", "_": "\\_", "^": "\\textasciicircum{}", "~": "\\textasciitilde{}",
+};
+const slideText = (value: string) => Array.from(value, char =>
+  char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127 ? " " : char).join("").replace(/\s+/g, " ").trim();
+const tex = (value: string) => slideText(value).replace(/[\\{}$&#%_^~]/g, char => texEscapes[char]);
+
+function slideList(items: string[], empty: string, budget = 850, limit = 3): string {
+  const selected: string[] = [];
+  for (const item of items.map(slideText)) {
+    if (selected.length >= limit || item.length > budget || item.split(" ").some(word => word.length > 70)) continue;
+    selected.push(item);
+    budget -= item.length;
+  }
+  const omitted = items.length - selected.length;
+  if (!items.length) selected.push(empty);
+  if (omitted) selected.push(`${omitted} item(s) omitted for space; see report.md for the complete assessment.`);
+  return ["\\begin{itemize}", ...selected.map(item => `\\item ${tex(item)}`), "\\end{itemize}"].join("\n");
+}
+
+export function beamer(snapshot: Snapshot, evidence: Evidence, context: ResearchContext): string {
+  const { handoff, ledger } = snapshot;
+  const citations = (ids: string[]) => ids.map(id => {
+    const claim = evidence.claims.find(c => c.id === id)!;
+    const source = handoff.sources.find(s => s.record_id === claim.source_id)!;
+    return `${id}: ${claim.source_id}, ${source.kind === "abstract" ? "abstract" : `PDF p. ${claim.page}`} (${claim.verification.status})`;
+  }).join("; ");
+  const frame = (title: string, body: string) =>
+    `\\begin{frame}[t]{${tex(title)}}\n\\small\n${body}\n\\end{frame}`;
+  const fulltext = handoff.sources.filter(s => s.kind === "fulltext").length;
+  const unresolved = evidence.claims.filter(c => c.verification.status !== "supported");
+  const limitations = [
+    ...handoff.sources.filter(s => s.limitation || s.warnings.length)
+      .map(s => `${s.record_id}: ${[s.limitation, ...s.warnings].filter(Boolean).join("; ")}`),
+    ...evidence.source_reviews.filter(r => r.status === "unreadable").map(r => `${r.source_id}: unreadable. ${r.note}`),
+    ...unresolved.map(c => `${citations([c.id])}: ${c.verification.reason}`),
+  ];
+  return [
+    "% Compile with: lualatex -no-shell-escape -interaction=nonstopmode -halt-on-error slides.tex",
+    "\\documentclass[aspectratio=169]{beamer}",
+    "\\usepackage{fontspec}",
+    "\\setbeamertemplate{navigation symbols}{}",
+    "\\setbeamertemplate{footline}[frame number]",
+    "\\begin{document}",
+    frame("Callimachus / Hypatia summary", [
+      slideList([`Question: ${ledger.question}`, `Audience: ${context.audience}`], "", 550, 2),
+      `\\medskip\n${tex(`Search cutoff: ${handoff.cutoff}. Final included publications: ${handoff.included_ids.length}.`)}\\par`,
+      `${tex(`Callimachus revision: ${handoff.revision}`)}\\par`,
+      "\\medskip\nPublication counts are not independent-study counts or evidence-quality scores.\\par",
+      "\\medskip\nSelected whole entries are shown in review order. Full criteria, assessments, exact quotations and references: \\texttt{report.md}.",
+    ].join("\n")),
+    frame("Callimachus criteria", [
+      `${tex(`Approved criteria version: ${ledger.criteria.version}`)}\\par`,
+      "\\medskip\n\\textbf{Include}",
+      slideList(ledger.criteria.include, "No inclusion criteria specified.", 350, 3),
+      "\\medskip\n\\textbf{Exclude}",
+      slideList(ledger.criteria.exclude, "No exclusion criteria specified.", 350, 3),
+    ].join("\n")),
+    frame("Hypatia: findings and disagreements", slideList(evidence.findings.map(f =>
+      `${f.id}: ${f.statement} Evidence: ${citations(f.claim_ids)}. Strength: ${f.strength} ` +
+      `Counterevidence: ${f.disagreements.length ? citations(f.disagreements) : "none recorded; this does not establish consensus"}.`
+    ), "No supported findings were established.", 850, 2)),
+    frame("Hypatia: gaps in the reviewed corpus", [
+      slideList(evidence.gaps.map(g =>
+        `${g.id}: ${g.statement} Status: ${g.status}. Evidence: ${citations(g.claim_ids)}. ` +
+        `Currency: ${g.currency.rationale} (${g.currency.checked_source_ids.length}/${handoff.included_ids.length} publications checked). ` +
+        `Subsequent evidence: ${g.currency.claim_ids.length ? citations(g.currency.claim_ids) : "none recorded"}.`
+      ), "No author-stated gaps were established.", 750, 2),
+      "\\medskip\nOpen means open within this corpus and its cutoff; incomplete coverage remains unresolved.",
+    ].join("\n")),
+    frame("Hypatia: author proposals and feasibility", [
+      `${tex(`${shortlist(evidence).length} direction(s) meet the low-effort criteria.`)}\\par`,
+      "Feasibility is Hypatia's assessment, not an author claim.\\par",
+      slideList(evidence.opportunities.map(o => {
+        const gap = evidence.gaps.find(g => g.id === o.gap_id)!;
+        return `${o.id}: ${opportunityText(evidence, o)} Evidence: ${citations(o.direction_claim_ids)}. ` +
+          `Gap: ${gap.id} (${gap.status}). Effort: ${o.feasibility.effort}; ${o.feasibility.rationale} ` +
+          `Prerequisites: ${o.feasibility.prerequisites.join("; ") || "unknown"}. ` +
+          `Unknowns: ${o.feasibility.unknowns.join("; ") || "none recorded"}. ` +
+          `Resources: ${o.feasibility.resource_ids.join(", ") || "none supplied"}.`;
+      }), "No author-proposed opportunities were established.", 750, 2),
+    ].join("\n")),
+    frame("Coverage, limitations and researcher constraints", [
+      `${tex(`${ledger.queries.length} query audit entries; ${ledger.records.length} deduplicated publications.`)}\\par`,
+      `${tex(`Included: ${fulltext} full text; ${handoff.sources.length - fulltext} abstract only. ` +
+        `${unresolved.length} uncertain or contradicted claim(s); ${evidence.source_reviews.filter(r => r.status === "unreadable").length} unreadable source(s).`)}\\par`,
+      "\\medskip\n\\textbf{Access and uncertainty}",
+      slideList(limitations, "No access warnings or unresolved claims recorded; this does not establish certainty.", 350, 2),
+      "\\medskip\n\\textbf{Researcher resources}",
+      slideList(context.resources.map(r => `${r.id}: ${r.description}`),
+        "No resources supplied; low-effort shortlisting is disabled.", 250, 2),
+      "\\medskip\nHypatia performs no additional search. All details and omitted entries remain in \\texttt{report.md}.",
+    ].join("\n")),
+    "\\end{document}", "",
+  ].join("\n\n");
 }
 
 export function report(snapshot: Snapshot, evidence: Evidence, context: ResearchContext): string {
@@ -135,7 +233,9 @@ export function render(snapshot: Snapshot): string {
   const evidence = loadEvidence(snapshot);
   const context = loadContext(snapshot);
   validateDelivery(snapshot, evidence);
-  const digest = evidenceDigest(snapshot);
+  const evidenceHash = evidenceDigest(snapshot);
+  const rendererVersion = 2;
+  const digest = hash(json({ evidence_digest: evidenceHash, renderer_version: rendererVersion }));
   const root = evidenceDirectory(snapshot);
   const directory = inside(root, `exports/${digest}`);
   if (existsSync(directory)) {
@@ -146,6 +246,7 @@ export function render(snapshot: Snapshot): string {
   mkdirSync(staging, { recursive: true });
   const save = (name: string, data: string | Buffer) => writeFileSync(join(staging, name), data, { flag: "wx" });
   save("report.md", report(snapshot, evidence, context));
+  save("slides.tex", beamer(snapshot, evidence, context));
   save("brief.md", [
     `# ${md(snapshot.ledger.question)}`, `Search cutoff: ${snapshot.handoff.cutoff}; revision: ${snapshot.handoff.revision}.`,
     "", "## Findings", ...evidence.findings.map(f => `- ${md(f.statement)} (${f.claim_ids.join(", ")}; see report audit). Strength: ${md(f.strength)}. Counterevidence: ${f.disagreements.join(", ") || "none recorded"}.`),
@@ -194,9 +295,9 @@ export function render(snapshot: Snapshot): string {
   save("evidence.json", json(evidence));
   save("context.json", json(context));
   for (const name of ["references.bib", "references.csv"]) save(name, readFileSync(inside(snapshot.directory, name)));
-  save("provenance.json", json({ handoff: snapshot.handoff, evidence_digest: digest }));
+  save("provenance.json", json({ handoff: snapshot.handoff, evidence_digest: evidenceHash, renderer_version: rendererVersion }));
   loadSnapshot(snapshot.root, snapshot.handoff.revision);
-  if (digest !== evidenceDigest(snapshot)) throw new Error("Evidence changed during rendering");
+  if (evidenceHash !== evidenceDigest(snapshot)) throw new Error("Evidence changed during rendering");
   renameSync(staging, directory);
   atomicWrite(inside(root, "delivery.json"), json({ digest, directory }));
   return directory;
