@@ -77,8 +77,8 @@ export default function hypatia(pi: ExtensionAPI): void {
       try {
         const input = args.trim();
         if (!input) throw new Error("Use /hypatia <review folder> or /hypatia question <research question>");
-        if (input.startsWith("question ")) {
-          const question = input.slice(9).trim();
+        if (input === "question" || input.startsWith("question ")) {
+          const question = input.slice("question".length).trim();
           if (!question) throw new Error("A research question is required");
           const root = python<string>("prepare", ctx.cwd, { question });
           await start(root, ctx, question);

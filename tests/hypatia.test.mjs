@@ -750,3 +750,197 @@ test("Python CLI rejects malformed data and Pi declarations share its evidence s
   assert.throws(() => saveEvidence(snapshot, { ...evidence(snapshot), claims: "invalid" }), /Invalid data/);
   assert.throws(() => python("source", snapshot.root, { source_id: "paper-1", page: 1, offset: -1 }), /Invalid page/);
 });
+
+function commandHarness() {
+  const commands = new Map();
+  const tools = new Map();
+  const messages = [];
+  const notices = [];
+  extension({
+    registerCommand: (name, definition) => commands.set(name, definition),
+    registerTool: definition => tools.set(definition.name, definition),
+    sendUserMessage: (message, options) => messages.push({ message, options }),
+  });
+  return { commands, tools, messages, notices,
+    ctx: { cwd: sandbox, hasUI: true, ui: {
+      notify: (message, level) => notices.push({ message, level }),
+      confirm: async () => true, input: async () => undefined, setStatus: () => {},
+    } },
+  };
+}
+
+test("Callimachus empty question asks first and its screening instruction matches the Python CLI", async () => {
+  const commands = new Map();
+  const messages = [];
+  callimachus({
+    registerCommand: (name, value) => commands.set(name, value),
+    sendUserMessage: (message, options) => messages.push({ message, options }),
+  });
+  await commands.get("callimachus").handler("   ");
+  assert.match(messages[0].message, /ask me for one before doing anything else/);
+  assert.match(messages[0].message, /ledger.py decide --by llm/);
+  assert.match(messages[0].message, /never overwrite a human decision/);
+  assert.deepEqual(messages[0].options, { deliverAs: "followUp" });
+});
+
+test("Hypatia commands reject missing arguments and noninteractive human approval", async () => {
+  const harness = commandHarness();
+  await harness.commands.get("hypatia").handler("", harness.ctx);
+  await harness.commands.get("hypatia").handler("question   ", harness.ctx);
+  await harness.commands.get("callimachus-approve").handler("wrong gate", harness.ctx);
+  await harness.commands.get("callimachus-approve").handler(`criteria ${sandbox}`, { ...harness.ctx, hasUI: false });
+  assert.deepEqual(harness.notices.map(n => n.level), ["error", "error", "error", "error"]);
+  assert.match(harness.notices[1].message, /research question is required/);
+  assert.match(harness.notices[3].message, /interactive UI/);
+  assert.equal(harness.messages.length, 0);
+});
+
+test("human criteria and triage confirmations release only their own gate", async () => {
+  const { root } = fixture({ completed: false });
+  const harness = commandHarness();
+  for (const gate of ["criteria", "triage"]) {
+    writeJson(join(root, ".callimachus/approvals.json"), {});
+    await harness.commands.get("callimachus-approve").handler(`${gate} ${root}`, harness.ctx);
+    assert.deepEqual(readJson(join(root, ".callimachus/approvals.json")), { [gate]: gateFingerprint(root, gate) });
+    assert.match(harness.messages.at(-1).message, new RegExp(`released Callimachus's ${gate} gate`));
+    assert.equal(harness.messages.at(-1).options.deliverAs, "followUp");
+  }
+  assert.equal(existsSync(join(root, ".callimachus/current.json")), false);
+});
+
+test("curation confirmation finalizes without starting unsolicited synthesis", async () => {
+  const { root } = fixture({ completed: false });
+  const harness = commandHarness();
+  await harness.commands.get("callimachus-approve").handler(`curation ${root}`, harness.ctx);
+  assert.equal(loadSnapshot(root).handoff.status, "completed");
+  assert.match(harness.notices[0].message, /Callimachus completed/);
+  assert.equal(existsSync(join(root, ".hypatia/request.json")), false);
+});
+
+test("audience and resource cancellation preserve the review without starting a session", async () => {
+  const { root, snapshot } = fixture();
+  const directory = evidenceDirectory(snapshot);
+  rmSync(join(directory, "context.json"));
+  const harness = commandHarness();
+  await harness.commands.get("hypatia").handler(root, { ...harness.ctx, hasUI: false });
+  assert.match(harness.notices.at(-1).message, /interactively/);
+  for (const values of [[undefined], ["Peers", undefined]]) {
+    let prompts = 0;
+    const ctx = { ...harness.ctx, ui: { ...harness.ctx.ui, input: async () => values[prompts++] } };
+    await harness.commands.get("hypatia").handler(root, ctx);
+    assert.equal(prompts, values.length);
+    assert.equal(existsSync(join(directory, "context.json")), false);
+    assert.equal(existsSync(join(root, ".hypatia/request.json")), false);
+  }
+});
+
+test("synthesis normalizes interactive context and releases its active lock after failure", async () => {
+  const { root, snapshot } = fixture();
+  rmSync(join(evidenceDirectory(snapshot), "context.json"));
+  const harness = commandHarness();
+  const inputs = ["   ", " data ; ; compute "];
+  harness.ctx.ui.input = async () => inputs.shift();
+  await harness.commands.get("hypatia").handler(root, harness.ctx);
+  assert.match(harness.notices.at(-1).message, /Choose a Pi model/);
+  assert.deepEqual(loadContext(snapshot), { audience: "Peers and stakeholders",
+    resources: [{ id: "resource-1", description: "data" }, { id: "resource-2", description: "compute" }] });
+  assert.equal(readJson(join(root, ".hypatia/request.json")).status, "paused");
+  await harness.commands.get("hypatia").handler(root, harness.ctx);
+  assert.match(harness.notices.at(-1).message, /Choose a Pi model/);
+});
+
+test("successful Pi synthesis uses mediated save/render tools and disposes its session", async t => {
+  const { root, snapshot } = fixture();
+  const harness = commandHarness();
+  const parent = await modelFixture({ apiKey: { name: "Fixture", resolve: async () => ({ auth: { apiKey: "test-only" } }) } });
+  let disposed = 0;
+  const originalDispose = AgentSession.prototype.dispose;
+  t.mock.method(AgentSession.prototype, "dispose", function () { disposed++; return originalDispose.call(this); });
+  t.mock.method(AgentSession.prototype, "prompt", async function () {
+    const tools = this.agent.state.tools;
+    const read = await tools.find(t => t.name === "hypatia_snapshot").execute("read", {});
+    assert.equal(JSON.parse(read.content[0].text).handoff.revision, snapshot.handoff.revision);
+    await tools.find(t => t.name === "hypatia_save").execute("save", evidence(snapshot));
+    const rendered = await tools.find(t => t.name === "hypatia_render").execute("render", {});
+    assert.ok(existsSync(join(JSON.parse(rendered.content[0].text).directory, "slides.tex")));
+  });
+  const status = [];
+  const ctx = { ...harness.ctx, ...parent, ui: { ...harness.ctx.ui, setStatus: (...args) => status.push(args) } };
+  await harness.tools.get("hypatia").execute("run", { review_folder: root }, undefined, undefined, ctx);
+  assert.equal(readJson(join(root, ".hypatia/request.json")).status, "delivered");
+  assert.equal(disposed, 1);
+  assert.deepEqual(status.at(-1), ["hypatia", undefined]);
+  assert.match(harness.notices.at(-1).message, /Hypatia delivered/);
+});
+
+test("every mediated operation rejects stale snapshots and pending upstream refreshes", async () => {
+  const { root, snapshot } = fixture();
+  saveEvidence(snapshot, evidence(snapshot));
+  const tools = restrictedTools(snapshot, () => {});
+  await tools.find(t => t.name === "request_callimachus").execute("refresh", { reason: "New corpus needed" });
+  for (const tool of tools.filter(t => t.name !== "request_callimachus")) {
+    await assert.rejects(tool.execute("blocked", {}), /Awaiting a new completed/);
+  }
+  const stale = restrictedTools(snapshot, () => {});
+  finalize(root);
+  for (const tool of stale.filter(t => t.name !== "request_callimachus")) {
+    await assert.rejects(tool.execute("stale", {}), /newer Callimachus/);
+  }
+});
+
+test("model setup rejects unknown providers and synthesis handles pre-cancellation", async () => {
+  await assert.rejects(hypatiaModelRuntime({}), /Choose a Pi model/);
+  await assert.rejects(hypatiaModelRuntime({ model: { provider: "missing" },
+    modelRegistry: { getProvider: () => undefined } }), /Unknown Pi provider/);
+  const { root } = fixture();
+  const harness = commandHarness();
+  await harness.commands.get("hypatia").handler(root, { ...harness.ctx, signal: AbortSignal.abort() });
+  assert.match(harness.notices.at(-1).message, /cancelled/);
+  assert.equal(readJson(join(root, ".hypatia/request.json")).status, "paused");
+});
+
+test("in-flight cancellation aborts Pi and a second synthesis cannot enter the active review", { timeout: 30000 }, async t => {
+  const { root, snapshot } = fixture();
+  const harness = commandHarness();
+  const parent = await modelFixture({ apiKey: { name: "Fixture", resolve: async () => ({ auth: { apiKey: "test-only" } }) } });
+  const controller = new AbortController();
+  let started, finishPrompt;
+  const prompting = new Promise(resolve => { started = resolve; });
+  t.mock.method(AgentSession.prototype, "prompt", async () => new Promise(resolve => {
+    finishPrompt = resolve;
+    started();
+  }));
+  const originalAbort = AgentSession.prototype.abort;
+  const aborted = t.mock.method(AgentSession.prototype, "abort", async function () {
+    await originalAbort.call(this);
+    finishPrompt();
+  });
+  const ctx = { ...harness.ctx, ...parent, signal: controller.signal };
+  const running = harness.commands.get("hypatia").handler(root, ctx);
+  await prompting;
+  await harness.commands.get("hypatia").handler(root, ctx);
+  assert.match(harness.notices.at(-1).message, /already has a running/);
+  controller.abort();
+  await running;
+  assert.equal(aborted.mock.callCount(), 1);
+  assert.match(harness.notices.at(-1).message, /cancelled/);
+  assert.equal(readJson(join(root, ".hypatia/request.json")).status, "paused");
+  assert.equal(existsSync(join(evidenceDirectory(snapshot), "delivery.json")), false);
+});
+
+test("successful refresh requests delegate upstream and never publish stale evidence", async t => {
+  const { root, snapshot } = fixture();
+  const harness = commandHarness();
+  const parent = await modelFixture({ apiKey: { name: "Fixture", resolve: async () => ({ auth: { apiKey: "test-only" } }) } });
+  t.mock.method(AgentSession.prototype, "prompt", async function () {
+    const tool = this.agent.state.tools.find(t => t.name === "request_callimachus");
+    await tool.execute("refresh", { reason: "Update the completed corpus" });
+  });
+  await harness.commands.get("hypatia").handler(root, { ...harness.ctx, ...parent });
+  const request = readJson(join(root, ".hypatia/request.json"));
+  assert.equal(request.status, "awaiting_callimachus");
+  assert.equal(request.previous_revision, snapshot.handoff.revision);
+  assert.match(harness.messages[0].message, /Update the completed corpus/);
+  assert.equal(harness.messages[0].options.deliverAs, "followUp");
+  assert.equal(existsSync(join(evidenceDirectory(snapshot), "delivery.json")), false);
+});

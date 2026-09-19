@@ -13,7 +13,7 @@ def source_pages(snapshot, source_id):
 
 
 def source_passage(snapshot, source_id, page, offset):
-    if not isinstance(page, int) or not isinstance(offset, int) or page < 1 or offset < 0:
+    if type(page) is not int or type(offset) is not int or page < 1 or offset < 0:
         raise ValueError("Invalid page or offset")
     pages = source_pages(snapshot, source_id)
     selected = next((p for p in pages if p["page"] == page), None)

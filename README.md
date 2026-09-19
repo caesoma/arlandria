@@ -184,13 +184,21 @@ Use Node 24 (`nvm use`, as specified by `.nvmrc`) and `uv`:
 ```bash
 npm install
 npm run check
-uv run --with ruff==0.14.8 ruff check --select E9,F63,F7,F82 skills/callimachus/scripts/pdf_extract.py
 ```
 
-`npm run check` includes Ruff, mypy, and Python standalone tests, plus TypeScript
-checks and Node tests of the Python bridge and actual Pi SDK tool boundary,
-without making a model request. Python checks also run independently with
-`uv run scripts/check-python.py`. A live literature run additionally
+`npm run check` includes Ruff, mypy, and Python tests for both skills, plus TypeScript
+checks and Node tests of the Python bridge, actual Pi SDK tool boundary, launcher,
+and POSIX installer. Tests use temporary review folders and mocked network/model
+responses; they do not perform literature searches or make model requests.
+Python checks also run independently with `uv run scripts/check-python.py`.
+The Python suite measures lines and branches, includes subprocesses, and enforces
+95% combined coverage. It writes `coverage/python.json` and an HTML report at
+`coverage/python/index.html`; coverage output is ignored by Git.
+`npm test` also reports coverage for the Pi extensions. Installer tests mock Node,
+uv, and npm so no packages are installed; PowerShell checks run when `pwsh` or
+`powershell` is available and otherwise report an explicit skip.
+Native Windows behavior still requires testing on Windows.
+A live literature run additionally
 requires the researcher's Pi model authentication, search credentials, papers,
 and human gate decisions.
 

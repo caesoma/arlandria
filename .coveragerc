@@ -1,0 +1,12 @@
+[run]
+branch = True
+parallel = True
+source =
+    skills/callimachus/scripts
+    skills/hypatia/scripts
+patch =
+    subprocess
+
+[report]
+fail_under = 95
+precision = 2

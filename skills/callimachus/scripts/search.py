@@ -3,6 +3,7 @@
 # requires-python = ">=3.11"
 # dependencies = [
 #   "requests==2.32.*",  # used transitively via _common (polite HTTP); uv builds an isolated env
+#   "defusedxml==0.7.1",
 # ]
 # ///
 """Search one bibliographic backend; print lean normalized records as JSON to stdout.
@@ -50,7 +51,8 @@ Usage: search.py --source openalex --query "CRISPR off-target detection" [--limi
        search.py --source openalex --query "..." --filter type:preprint
        search.py --source arxiv --query "..." --since 2026-05-01
 """
-import argparse, datetime, json, os, re, sys, xml.etree.ElementTree as ET  # ET: PubMed/arXiv are XML
+import argparse, datetime, json, os, re, sys
+from defusedxml import ElementTree as ET
 from _common import get, search_record, die, EMAIL
 
 
@@ -253,7 +255,7 @@ def pubmed(q, a):
     # an abstract may arrive as several <AbstractText> chunks (Background/Methods/...) - join them
     for art in ET.fromstring(xml).findall(".//PubmedArticle"):
         pmid = art.findtext(".//PMID")
-        chunks = [e.text or "" for e in art.findall(".//Abstract/AbstractText")]
+        chunks = ["".join(e.itertext()) for e in art.findall(".//Abstract/AbstractText")]
         abs_by_pmid[pmid] = " ".join(c.strip() for c in chunks).strip() or None
     out = []
     for pid in ids:
