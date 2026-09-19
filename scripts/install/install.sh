@@ -1,6 +1,6 @@
 #!/bin/sh
 set -eu
-# Callimachus installer: installs the npm package and ensures `uv`, which provisions the Python
+# Arlandria installer: installs the npm package and ensures `uv`, which provisions the Python
 # primitives' dependencies on first run (PEP 723 - no pip, no requirements.txt, no venv).
 # Requires Node 20.19-24; `uv` manages its own Python.
 step() { printf '==> %s\n' "$1"; }
@@ -16,7 +16,7 @@ if ! command -v uv >/dev/null 2>&1; then
   exit 1
 fi
 
-step "Installing callimachus (npm, global)"
-npm install -g callimachus
+step "Installing arlandria (npm, global)"
+npm install -g arlandria
 
-step "Done. Run:  cal \"review the literature on <your topic>\""
+step "Done. Run:  arlandria \"review the literature on <your topic>\""

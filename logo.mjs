@@ -11,7 +11,7 @@ export const banner = String.raw`
                                               ▀▀                ▀      ▀▀
 `;
 
-// Canonical exports the launcher (bin/callimachus.js) and logo.d.mts expect.
+// Canonical exports the launcher (bin/arlandria.js) and logo.d.mts expect.
 // Derived from `banner` so the art isn't duplicated; trim the template's leading/trailing newline.
 export const CALLIMACHUS_ASCII_LOGO = banner.replace(/^\n+|\n+$/g, "").split("\n");
 export const CALLIMACHUS_ASCII_LOGO_TEXT = CALLIMACHUS_ASCII_LOGO.join("\n");

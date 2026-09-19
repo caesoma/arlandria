@@ -26,7 +26,7 @@ Arlandria provides exactly two skills:
 ### What you type → what happens
 
 ```
-$ cal "review the literature on CRISPR off-target detection"
+$ arlandria "review the literature on CRISPR off-target detection"
 → Drafts inclusion criteria with you, searches OpenAlex (+ more when warranted),
   screens every abstract, reports clusters + gaps, and asks you to sharpen scope.
 
@@ -51,17 +51,17 @@ The branded launcher checks for `uv` on start and prints this hint if it is miss
 **As a pi-based, standalone CLI.**
 
 ```bash
-curl -fsSL <your-host>/install | bash    # or: npm install -g callimachus
+npm install -g arlandria
 ```
 
-`cal` (alias of `arlandria`) prints the banner and launches Pi with the `callimachus` and `hypatia` skills and commands.
+`arlandria` prints the banner and launches Pi with the `callimachus` and `hypatia` skills and commands.
 
 
-**As a Pi package.** If you don't want to perform an installation of the package, Callimachis can be added to a standard Pi harness as a skill package.
-Add to your Pi settings so the skill is auto-discovered:
+**As a Pi package.** Arlandria can also be loaded by an existing Pi installation.
+Add it to your Pi settings so both skills are discovered:
 
 ```json
-{ "packages": ["npm:callimachus"] }
+{ "packages": ["npm:arlandria"] }
 ```
 
 Then just talk to `pi` about a research question.
@@ -179,7 +179,7 @@ and human gate decisions.
 arlandria/
 ├── logo.mjs                      # the lettering
 ├── package.json                  # pi-package: ships skills/ + prompts/ + extensions/ via the "pi" field
-├── bin/arlandria.js              # branded launcher (alias: cal): banner, then hands off to Pi
+├── bin/arlandria.js              # arlandria launcher: banner, then hands off to Pi
 ├── extensions/callimachus/       # registers /callimachus
 ├── extensions/hypatia/           # isolated synthesis and Callimachus approval commands
 ├── prompts/callimachus.md        # the /callimachus prompt workflow

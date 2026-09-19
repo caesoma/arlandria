@@ -8,8 +8,7 @@
     "node": ">=20.19.0 <25"
   },
   "bin": {
-    "arlandria": "bin/arlandria.js",
-    "cal": "bin/arlandria.js"
+    "arlandria": "bin/arlandria.js"
   },
   "files": [
     "bin/",

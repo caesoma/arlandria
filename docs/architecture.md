@@ -41,7 +41,7 @@ settings), it loads both skills, the `/callimachus` prompt, and their command ex
 There are two ways to run it:
 
 - **As a Pi package** — add it to Pi settings; then just talk to `pi`.
-- **As a branded CLI** — the `cal` / `arlandria` launcher
+- **As a branded CLI** — the `arlandria` launcher
   ([`bin/arlandria.js`](../bin/arlandria.js)) prints the banner and spawns Pi with both skills and
   extensions already on the path:
 
@@ -60,7 +60,7 @@ normal `.pi/` settings under the Callimachus name. `SYSTEM.md` is the standing s
 
 | Piece | Path | Role |
 |------|------|------|
-| Launcher | [`bin/arlandria.js`](../bin/arlandria.js) | Branded entry point (`cal`); banner, then hands off to Pi. |
+| Launcher | [`bin/arlandria.js`](../bin/arlandria.js) | Branded entry point (`arlandria`); banner, then hands off to Pi. |
 | Callimachus extension | [`extensions/callimachus/index.ts`](../extensions/callimachus/index.ts) | Registers `/callimachus`; kicks the LLM into the review workflow. |
 | Hypatia extension | [`extensions/hypatia/index.ts`](../extensions/hypatia/index.ts) | Registers `/hypatia` and `/callimachus-approve`; enforces the completed-review prerequisite. |
 | Prompt | [`prompts/callimachus.md`](../prompts/callimachus.md) | The `/callimachus` slash-command body — disciplines + handoff to the skill. |
