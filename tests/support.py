@@ -37,7 +37,7 @@ class Sandbox(unittest.TestCase):
     def setUp(self):
         temporary = TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.home = Path(temporary.name)
+        self.home = Path(temporary.name).resolve()
         self.root = self.home / "review"
         self.root.mkdir()
         environment = patch.dict(os.environ, {"HOME": str(self.home), "USERPROFILE": str(self.home)})
