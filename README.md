@@ -137,8 +137,11 @@ The bundled launcher and Pi package expose:
 /hypatia question What does the literature establish about ...?
 ```
 
-Hypatia produces a cited Markdown report, presentation brief, SVG evidence and
-opportunity matrices, gap-to-direction diagram, and review-flow visual. Findings
+Hypatia produces a cited Markdown report, presentation brief, a minimal six-slide
+LaTeX Beamer deck, SVG evidence and opportunity matrices, gap-to-direction diagram,
+and review-flow visual. The deck summarizes the approved Callimachus criteria and
+Hypatia's findings, gaps, feasibility, and limitations. Its standalone `slides.tex`
+can be compiled with LuaLaTeX; generating it requires no TeX installation. Findings
 and research directions trace to exact passages. Feasibility uses the researcher's
 stated resources; an empty low-effort shortlist is a valid result.
 
@@ -155,6 +158,21 @@ search tool, filesystem reader, extensions, skills, or project instructions.
 Any requested refresh returns to Callimachus and waits for a new completed result.
 The configured Pi model/authentication is reused for synthesis.
 
+All standalone skill work is Python. Hypatia's completion checks, evidence
+validation and history, source reads, and Markdown/SVG/Beamer rendering live in
+[`skills/hypatia/scripts/`](skills/hypatia/scripts/). TypeScript only connects
+the scripts to Pi's commands, tools, dialogs, sessions, and model authentication.
+Callimachus's existing scripts are also Python.
+
+You can re-render saved, validated evidence without starting Pi:
+
+```bash
+uv run skills/hypatia/scripts/hypatia.py render /path/to/review
+```
+
+The command returns the export directory as JSON. It verifies the completed
+Callimachus snapshot and researcher context before writing any delivery.
+
 See the [skill](skills/hypatia/SKILL.md) and
 [completion and evidence contracts](skills/hypatia/references/contracts.md)
 for setup, schemas, access limitations, resume behavior, and output locations.
@@ -166,11 +184,24 @@ Use Node 24 (`nvm use`, as specified by `.nvmrc`) and `uv`:
 ```bash
 npm install
 npm run check
-uv run --with ruff==0.14.8 ruff check --select E9,F63,F7,F82 skills/callimachus/scripts/pdf_extract.py
 ```
 
-The native Node tests exercise deterministic primitives and the actual Pi SDK
-tool boundary without making a model request. A live literature run additionally
+`npm run check` includes Ruff, mypy, and Python tests for both skills, plus TypeScript
+checks and Node tests of the Python bridge, actual Pi SDK tool boundary, launcher,
+and POSIX installer. Tests use temporary review folders and mocked network/model
+responses; they do not perform literature searches or make model requests.
+Python checks also run independently with `uv run scripts/check-python.py`.
+The Python suite measures lines and branches, includes subprocesses, and enforces
+95% combined coverage. It writes `coverage/python.json` and an HTML report at
+`coverage/python/index.html`; coverage output is ignored by Git.
+`npm test` also reports coverage for the Pi extensions. Installer tests mock Node,
+uv, and npm so no packages are installed; PowerShell checks run when `pwsh` or
+`powershell` is available and otherwise report an explicit skip.
+The [CI workflow](.github/workflows/checks.yml) runs the complete check command on
+Ubuntu 24.04 and native Windows Server 2022 with Node 24 and Python 3.11.
+Windows runs the PowerShell installer tests; the POSIX installer and shebang-based
+global-Pi fixture run on Linux.
+A live literature run additionally
 requires the researcher's Pi model authentication, search credentials, papers,
 and human gate decisions.
 

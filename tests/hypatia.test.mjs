@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, symlinkSync, rmSync, existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { delimiter, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { createJiti } from "jiti";
+import { createHmac } from "node:crypto";
+import {
+  approveGate, gateFingerprint, finalize, loadSnapshot, validateEvidence, saveEvidence, evidenceDirectory,
+  evidenceDigest, loadContext, loadEvidence, beamer, render, shortlist, hash, json, inside, python,
+} from "./python-bridge.mjs";
 import { createAssistantMessageEventStream, InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import {
   AgentSession, DefaultResourceLoader, ModelRegistry, ModelRuntime,
@@ -13,15 +18,18 @@ import {
 
 const sandbox = mkdtempSync(join(homedir(), ".hypatia-tests-"));
 // Keep signing keys and SDK discovery isolated from the developer's real home.
-const originalHome = process.env.HOME;
+const originalHome = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE };
 process.env.HOME = sandbox;
-after(() => { process.env.HOME = originalHome; rmSync(sandbox, { recursive: true }); });
+process.env.USERPROFILE = sandbox;
+after(() => {
+  for (const [name, value] of Object.entries(originalHome)) {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
+  rmSync(sandbox, { recursive: true });
+});
 const jiti = createJiti(import.meta.url);
-const { approveGate, gateFingerprint, finalize, loadSnapshot } = await jiti.import("../extensions/hypatia/handoff.ts");
-const { validateEvidence, saveEvidence, evidenceDirectory, loadEvidence } = await jiti.import("../extensions/hypatia/evidence.ts");
-const { render, shortlist } = await jiti.import("../extensions/hypatia/render.ts");
 const { restrictedTools, isolatedOptions, hypatiaModelRuntime, toolNames } = await jiti.import("../extensions/hypatia/runtime.ts");
-const { hash, json, inside } = await jiti.import("../extensions/hypatia/storage.ts");
 const { default: extension, pauseRequest } = await jiti.import("../extensions/hypatia/index.ts");
 const { default: callimachus } = await jiti.import("../extensions/callimachus/index.ts");
 
@@ -172,6 +180,127 @@ test("complete handoff, grounded evidence, Markdown and all SVGs share provenanc
   assert.equal(readJson(join(output, "provenance.json")).handoff.revision, snapshot.handoff.revision);
 });
 
+test("Beamer delivery includes six frames of approved criteria and cited Hypatia assessments", () => {
+  for (const fulltext of [false, true]) {
+    const { root, ledger } = fixture({ fulltext, completed: false });
+    ledger.criteria.exclude = ["Exclude animal-only studies"];
+    writeJson(join(root, "ledger.json"), ledger);
+    for (const gate of ["criteria", "triage", "curation"]) approveGate(root, gate, gateFingerprint(root, gate));
+    finalize(root);
+    const snapshot = loadSnapshot(root);
+    writeJson(join(evidenceDirectory(snapshot), "context.json"), context);
+    const document = evidence(snapshot);
+    document.findings[0].disagreements = ["c2"];
+    saveEvidence(snapshot, document);
+    const output = render(snapshot);
+    const slides = readFileSync(join(output, "slides.tex"), "utf8");
+    assert.match(slides, /\\documentclass\[aspectratio=169\]\{beamer\}/);
+    assert.equal(slides.match(/\\begin\{frame\}/g).length, 6);
+    assert.equal(slides.match(/\\end\{frame\}/g).length, 6);
+    assert.match(slides, /Relevant evidence/);
+    assert.match(slides, /Exclude animal-only studies/);
+    assert.match(slides, /What is established about this association\?/);
+    assert.match(slides, /2026-09-19/);
+    assert.ok(slides.includes(snapshot.handoff.revision));
+    assert.match(slides, /The association does not establish causation/);
+    assert.match(slides, /Counterevidence: c2: paper-1/);
+    assert.ok(slides.includes(fulltext ? "c1: paper-1, PDF p. 1" : "c1: paper-1, abstract"));
+    assert.match(slides, /open-in-reviewed-corpus/);
+    assert.match(slides, /Future work should evaluate rural clinics/);
+    assert.match(slides, /Effort: low/);
+    assert.match(slides, /Prerequisites: Clinic data/);
+    assert.match(slides, /r1: Approved data/);
+    assert.match(slides, /Feasibility is Hypatia's assessment, not an author claim/);
+    assert.equal(readJson(join(output, "provenance.json")).evidence_digest, evidenceDigest(snapshot));
+  }
+});
+
+test("Beamer escapes TeX metacharacters and preserves Unicode as literal text", () => {
+  const { snapshot } = fixture();
+  const document = evidence(snapshot);
+  snapshot.ledger.criteria.include = ["café α β ≤ 5% & $10 #1 a_b {group} ~ ^ \\input{untrusted}\nnext"];
+  snapshot.ledger.criteria.exclude = ["\\end{frame} ^^5cwrite18{untrusted}"];
+  const constraints = { audience: "\\input{audience}", resources: [{ id: "r1", description: "50% & data_set" }] };
+  document.findings[0].statement = "\\input{finding} association";
+  document.gaps[0].statement = "\\input{gap}";
+  document.claims[2].statement = "\\input{direction}";
+  snapshot.handoff.sources[0].limitation = "\\input{limitation}";
+  const slides = beamer(snapshot, document, constraints);
+  assert.ok(slides.includes("café α β ≤ 5\\% \\& \\$10 \\#1 a\\_b \\{group\\} \\textasciitilde{} \\textasciicircum{} \\textbackslash{}input\\{untrusted\\} next"));
+  for (const name of ["audience", "finding", "gap", "direction", "limitation"])
+    assert.ok(slides.includes(`\\textbackslash{}input\\{${name}\\}`));
+  assert.ok(slides.includes("\\textasciicircum{}\\textasciicircum{}5cwrite18\\{untrusted\\}"));
+  assert.ok(slides.includes("50\\% \\& data\\_set"));
+  assert.doesNotMatch(slides, /\\input\{|\\write18|\\includegraphics/);
+  assert.equal(slides.match(/\\end\{frame\}/g).length, 6);
+});
+
+test("Beamer keeps inconclusive assessments and empty sections explicit", () => {
+  const { snapshot } = fixture();
+  const document = evidence(snapshot);
+  document.gaps[0].status = "unresolved";
+  document.gaps[0].currency.checked_source_ids = [];
+  document.opportunities[0].feasibility.effort = "unknown";
+  document.opportunities[0].feasibility.unknowns = ["Data access"];
+  document.opportunities[0].feasibility.resource_ids = [];
+  saveEvidence(snapshot, document);
+  const slides = readFileSync(join(render(snapshot), "slides.tex"), "utf8");
+  assert.match(slides, /Status: unresolved/);
+  assert.match(slides, /Effort: unknown/);
+  assert.match(slides, /Unknowns: Data access/);
+  assert.match(slides, /0 direction\(s\) meet the low-effort criteria/);
+
+  const empty = { ...document, claims: [], findings: [], gaps: [], opportunities: [],
+    source_reviews: [{ source_id: "paper-1", status: "unreadable", note: "Text unavailable." }] };
+  writeJson(join(evidenceDirectory(snapshot), "context.json"), { audience: "Peers", resources: [] });
+  saveEvidence(snapshot, empty);
+  const emptySlides = readFileSync(join(render(snapshot), "slides.tex"), "utf8");
+  assert.equal(emptySlides.match(/\\begin\{frame\}/g).length, 6);
+  assert.match(emptySlides, /No supported findings were established/);
+  assert.match(emptySlides, /No author-stated gaps were established/);
+  assert.match(emptySlides, /No author-proposed opportunities were established/);
+  assert.match(emptySlides, /No resources supplied/);
+  assert.match(emptySlides, /1 unreadable source/);
+  assert.match(emptySlides, /Text unavailable/);
+});
+
+test("large Beamer summaries omit whole entries without cutting off qualifications", () => {
+  const { snapshot } = fixture();
+  const document = evidence(snapshot);
+  snapshot.ledger.criteria.include = Array.from({ length: 100 }, (_, i) => `Inclusion criterion ${i}`);
+  snapshot.ledger.criteria.exclude = ["x".repeat(100), "Keep this short exclusion"];
+  const statement = "This evidence ".repeat(100) + "does not establish causation.";
+  document.findings = [{ ...document.findings[0], statement }, ...Array.from({ length: 20 }, (_, i) =>
+    ({ ...document.findings[0], id: `f${i + 2}` }))];
+  const slides = beamer(snapshot, document, loadContext(snapshot));
+  assert.equal(slides.match(/\\begin\{frame\}/g).length, 6);
+  assert.match(slides, /97 item\(s\) omitted for space/);
+  assert.match(slides, /19 item\(s\) omitted for space/);
+  assert.match(slides, /Keep this short exclusion/);
+  assert.doesNotMatch(slides, /This evidence/);
+  assert.match(slides, /The association does not establish causation/);
+  assert.doesNotMatch(slides, /allowframebreaks/);
+});
+
+test("renderer upgrades produce Beamer without mutating pre-Beamer deliveries", () => {
+  const { snapshot } = fixture();
+  saveEvidence(snapshot, evidence(snapshot));
+  const root = evidenceDirectory(snapshot);
+  const oldDigest = evidenceDigest(snapshot);
+  const oldDirectory = join(root, "exports", oldDigest);
+  mkdirSync(oldDirectory, { recursive: true });
+  writeFileSync(join(oldDirectory, "report.md"), "Historical report");
+  writeJson(join(root, "delivery.json"), { digest: oldDigest, directory: oldDirectory });
+  const output = render(snapshot);
+  assert.notEqual(output, oldDirectory);
+  assert.ok(existsSync(join(output, "slides.tex")));
+  assert.equal(readFileSync(join(oldDirectory, "report.md"), "utf8"), "Historical report");
+  assert.equal(existsSync(join(oldDirectory, "slides.tex")), false);
+  assert.equal(render(snapshot), output);
+  assert.equal(readJson(join(root, "delivery.json")).directory, output);
+  assert.equal(readJson(join(output, "provenance.json")).renderer_version, 3);
+});
+
 test("early exports, missing gates, stale criteria, borderlines, and non-human curation are blocked", () => {
   const cases = [
     ledger => { ledger.records[0].screening.fulltext.decision = "unscreened"; },
@@ -235,8 +364,8 @@ test("fulltext artifacts, source changes and new revisions invalidate synthesis"
 test("absolute paths, traversal and symlinks never expose external artifacts", () => {
   const { root } = fixture({ completed: false });
   assert.throws(() => inside(root, "../secret"), /escapes/);
-  assert.throws(() => inside(root, "/etc/passwd"), /relative/);
-  symlinkSync(sandbox, join(root, "outside"));
+  assert.throws(() => inside(root, join(sandbox, "secret")), /relative/);
+  symlinkSync(sandbox, join(root, "outside"), "dir");
   assert.throws(() => inside(root, "outside/secret"), /Symlinks/);
 });
 
@@ -481,7 +610,7 @@ test("interrupted synthesis preserves its upstream refresh requirement across se
 test("bundled CLI launches outside the repository without a global pi or npm PATH", () => {
   const result = spawnSync(process.execPath, [resolve("bin/arlandria.js"), "--offline", "--version"], {
     cwd: sandbox, encoding: "utf8",
-    env: { ...process.env, PATH: "/usr/bin:/bin", CALLIMACHUS_SKIP_UV_CHECK: "1", CALLIMACHUS_QUIET: "1" },
+    env: { ...process.env, PATH: "", CALLIMACHUS_SKIP_UV_CHECK: "1", CALLIMACHUS_QUIET: "1" },
   });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout + result.stderr, /^\d+\.\d+\.\d+\s*$/);
@@ -570,4 +699,273 @@ test("source-free completed reviews produce a truthful empty report", () => {
   writeJson(join(evidenceDirectory(snapshot), "context.json"), context);
   saveEvidence(snapshot, loadEvidence(snapshot));
   assert.match(readFileSync(join(render(snapshot), "report.md"), "utf8"), /No supported findings/);
+});
+
+test("Python accepts legacy Node gate fingerprints and completion seals", () => {
+  const { root, ledger, snapshot } = fixture({ fulltext: true });
+  const fingerprint = hash(json({ question: ledger.question, criteria: ledger.criteria }));
+  assert.equal(gateFingerprint(root, "criteria"), fingerprint);
+  const { seal, ...unsigned } = snapshot.handoff;
+  const key = readFileSync(join(sandbox, ".arlandria/completion.key"));
+  const legacySeal = createHmac("sha256", key).update(json(unsigned)).digest("hex");
+  assert.equal(seal, legacySeal);
+  writeJson(join(snapshot.directory, "handoff.json"), { ...unsigned, seal: legacySeal });
+  assert.equal(loadSnapshot(root).handoff.revision, snapshot.handoff.revision);
+});
+
+test("standalone Python delivery works outside the package without Node or Pi on PATH", () => {
+  const { root, snapshot } = fixture();
+  saveEvidence(snapshot, evidence(snapshot));
+  const uv = process.env.PATH.split(delimiter)
+    .map(directory => join(directory, process.platform === "win32" ? "uv.exe" : "uv")).find(existsSync);
+  assert.ok(uv, "uv must be installed");
+  const result = spawnSync(uv, ["run", "--script", resolve("skills/hypatia/scripts/hypatia.py"),
+    "render", root, "--revision", snapshot.handoff.revision], {
+    cwd: sandbox, encoding: "utf8", input: "", env: { ...process.env, PATH: "" },
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(readFileSync(join(output, "slides.tex"), "utf8").match(/\\begin\{frame\}/g).length, 6);
+});
+
+test("Pi's Python source tool paginates Unicode and rejects stale review revisions", async () => {
+  const { root, ledger } = fixture({ completed: false });
+  ledger.records[0].abstract = "α😀".repeat(13000);
+  writeJson(join(root, "ledger.json"), ledger);
+  for (const gate of ["criteria", "triage", "curation"]) approveGate(root, gate, gateFingerprint(root, gate));
+  finalize(root);
+  const snapshot = loadSnapshot(root);
+  const tool = restrictedTools(snapshot, () => {}).find(t => t.name === "hypatia_source");
+  let text = "", offset = 0;
+  do {
+    const result = await tool.execute("page", { source_id: "paper-1", page: 1, offset });
+    const page = JSON.parse(result.content[0].text);
+    text += page.text;
+    offset = page.next_offset;
+  } while (offset !== null);
+  assert.equal(text, ledger.records[0].abstract);
+  await assert.rejects(tool.execute("external", { source_id: "unknown", page: 1, offset: 0 }), /not in/);
+  finalize(root);
+  await assert.rejects(tool.execute("stale", { source_id: "paper-1", page: 1, offset: 0 }), /newer/);
+});
+
+test("Python CLI rejects malformed data and Pi declarations share its evidence schema", () => {
+  const { snapshot } = fixture();
+  const tools = restrictedTools(snapshot, () => {});
+  const schema = python("schema", snapshot.root, { name: "Evidence" });
+  assert.deepEqual(JSON.parse(JSON.stringify(tools.find(t => t.name === "hypatia_save").parameters)), schema);
+  assert.throws(() => saveEvidence(snapshot, { ...evidence(snapshot), claims: "invalid" }), /Invalid data/);
+  assert.throws(() => python("source", snapshot.root, { source_id: "paper-1", page: 1, offset: -1 }), /Invalid page/);
+});
+
+function commandHarness() {
+  const commands = new Map();
+  const tools = new Map();
+  const messages = [];
+  const notices = [];
+  extension({
+    registerCommand: (name, definition) => commands.set(name, definition),
+    registerTool: definition => tools.set(definition.name, definition),
+    sendUserMessage: (message, options) => messages.push({ message, options }),
+  });
+  return { commands, tools, messages, notices,
+    ctx: { cwd: sandbox, hasUI: true, ui: {
+      notify: (message, level) => notices.push({ message, level }),
+      confirm: async () => true, input: async () => undefined, setStatus: () => {},
+    } },
+  };
+}
+
+test("Callimachus empty question asks first and its screening instruction matches the Python CLI", async () => {
+  const commands = new Map();
+  const messages = [];
+  callimachus({
+    registerCommand: (name, value) => commands.set(name, value),
+    sendUserMessage: (message, options) => messages.push({ message, options }),
+  });
+  await commands.get("callimachus").handler("   ");
+  assert.match(messages[0].message, /ask me for one before doing anything else/);
+  assert.match(messages[0].message, /ledger.py decide --by llm/);
+  assert.match(messages[0].message, /never overwrite a human decision/);
+  assert.deepEqual(messages[0].options, { deliverAs: "followUp" });
+});
+
+test("Hypatia commands reject missing arguments and noninteractive human approval", async () => {
+  const harness = commandHarness();
+  await harness.commands.get("hypatia").handler("", harness.ctx);
+  await harness.commands.get("hypatia").handler("question   ", harness.ctx);
+  await harness.commands.get("callimachus-approve").handler("wrong gate", harness.ctx);
+  await harness.commands.get("callimachus-approve").handler(`criteria ${sandbox}`, { ...harness.ctx, hasUI: false });
+  assert.deepEqual(harness.notices.map(n => n.level), ["error", "error", "error", "error"]);
+  assert.match(harness.notices[1].message, /research question is required/);
+  assert.match(harness.notices[3].message, /interactive UI/);
+  assert.equal(harness.messages.length, 0);
+});
+
+test("human criteria and triage confirmations release only their own gate", async () => {
+  const { root } = fixture({ completed: false });
+  const harness = commandHarness();
+  for (const gate of ["criteria", "triage"]) {
+    writeJson(join(root, ".callimachus/approvals.json"), {});
+    await harness.commands.get("callimachus-approve").handler(`${gate} ${root}`, harness.ctx);
+    assert.deepEqual(readJson(join(root, ".callimachus/approvals.json")), { [gate]: gateFingerprint(root, gate) });
+    assert.match(harness.messages.at(-1).message, new RegExp(`released Callimachus's ${gate} gate`));
+    assert.equal(harness.messages.at(-1).options.deliverAs, "followUp");
+  }
+  assert.equal(existsSync(join(root, ".callimachus/current.json")), false);
+});
+
+test("curation confirmation finalizes without starting unsolicited synthesis", async () => {
+  const { root } = fixture({ completed: false });
+  const harness = commandHarness();
+  await harness.commands.get("callimachus-approve").handler(`curation ${root}`, harness.ctx);
+  assert.equal(loadSnapshot(root).handoff.status, "completed");
+  assert.match(harness.notices[0].message, /Callimachus completed/);
+  assert.equal(existsSync(join(root, ".hypatia/request.json")), false);
+});
+
+test("audience and resource cancellation preserve the review without starting a session", async () => {
+  const { root, snapshot } = fixture();
+  const directory = evidenceDirectory(snapshot);
+  rmSync(join(directory, "context.json"));
+  const harness = commandHarness();
+  await harness.commands.get("hypatia").handler(root, { ...harness.ctx, hasUI: false });
+  assert.match(harness.notices.at(-1).message, /interactively/);
+  for (const values of [[undefined], ["Peers", undefined]]) {
+    let prompts = 0;
+    const ctx = { ...harness.ctx, ui: { ...harness.ctx.ui, input: async () => values[prompts++] } };
+    await harness.commands.get("hypatia").handler(root, ctx);
+    assert.equal(prompts, values.length);
+    assert.equal(existsSync(join(directory, "context.json")), false);
+    assert.equal(existsSync(join(root, ".hypatia/request.json")), false);
+  }
+});
+
+test("synthesis normalizes interactive context and releases its active lock after failure", async () => {
+  const { root, snapshot } = fixture();
+  rmSync(join(evidenceDirectory(snapshot), "context.json"));
+  const harness = commandHarness();
+  const inputs = ["   ", " data ; ; compute "];
+  harness.ctx.ui.input = async () => inputs.shift();
+  await harness.commands.get("hypatia").handler(root, harness.ctx);
+  assert.match(harness.notices.at(-1).message, /Choose a Pi model/);
+  assert.deepEqual(loadContext(snapshot), { audience: "Peers and stakeholders",
+    resources: [{ id: "resource-1", description: "data" }, { id: "resource-2", description: "compute" }] });
+  assert.equal(readJson(join(root, ".hypatia/request.json")).status, "paused");
+  await harness.commands.get("hypatia").handler(root, harness.ctx);
+  assert.match(harness.notices.at(-1).message, /Choose a Pi model/);
+});
+
+test("successful Pi synthesis uses mediated save/render tools and disposes its session", async t => {
+  const { root, snapshot } = fixture();
+  const harness = commandHarness();
+  const parent = await modelFixture({ apiKey: { name: "Fixture", resolve: async () => ({ auth: { apiKey: "test-only" } }) } });
+  let disposed = 0;
+  const originalDispose = AgentSession.prototype.dispose;
+  t.mock.method(AgentSession.prototype, "dispose", function () { disposed++; return originalDispose.call(this); });
+  t.mock.method(AgentSession.prototype, "prompt", async function () {
+    const tools = this.agent.state.tools;
+    const read = await tools.find(t => t.name === "hypatia_snapshot").execute("read", {});
+    assert.equal(JSON.parse(read.content[0].text).handoff.revision, snapshot.handoff.revision);
+    await tools.find(t => t.name === "hypatia_save").execute("save", evidence(snapshot));
+    const rendered = await tools.find(t => t.name === "hypatia_render").execute("render", {});
+    assert.ok(existsSync(join(JSON.parse(rendered.content[0].text).directory, "slides.tex")));
+  });
+  const status = [];
+  const ctx = { ...harness.ctx, ...parent, ui: { ...harness.ctx.ui, setStatus: (...args) => status.push(args) } };
+  await harness.tools.get("hypatia").execute("run", { review_folder: root }, undefined, undefined, ctx);
+  assert.equal(readJson(join(root, ".hypatia/request.json")).status, "delivered");
+  assert.equal(disposed, 1);
+  assert.deepEqual(status.at(-1), ["hypatia", undefined]);
+  assert.match(harness.notices.at(-1).message, /Hypatia delivered/);
+});
+
+test("every mediated operation rejects stale snapshots and pending upstream refreshes", async () => {
+  const { root, snapshot } = fixture();
+  saveEvidence(snapshot, evidence(snapshot));
+  const tools = restrictedTools(snapshot, () => {});
+  await tools.find(t => t.name === "request_callimachus").execute("refresh", { reason: "New corpus needed" });
+  for (const tool of tools.filter(t => t.name !== "request_callimachus")) {
+    await assert.rejects(tool.execute("blocked", {}), /Awaiting a new completed/);
+  }
+  const stale = restrictedTools(snapshot, () => {});
+  finalize(root);
+  for (const tool of stale.filter(t => t.name !== "request_callimachus")) {
+    await assert.rejects(tool.execute("stale", {}), /newer Callimachus/);
+  }
+});
+
+test("model setup rejects unknown providers and synthesis handles pre-cancellation", async () => {
+  await assert.rejects(hypatiaModelRuntime({}), /Choose a Pi model/);
+  await assert.rejects(hypatiaModelRuntime({ model: { provider: "missing" },
+    modelRegistry: { getProvider: () => undefined } }), /Unknown Pi provider/);
+  const { root } = fixture();
+  const harness = commandHarness();
+  await harness.commands.get("hypatia").handler(root, { ...harness.ctx, signal: AbortSignal.abort() });
+  assert.match(harness.notices.at(-1).message, /cancelled/);
+  assert.equal(readJson(join(root, ".hypatia/request.json")).status, "paused");
+});
+
+test("an unregistered Pi model gives login and selection guidance without publishing", async () => {
+  const { root, snapshot } = fixture();
+  const harness = commandHarness();
+  const runtime = await ModelRuntime.create({
+    credentials: new InMemoryCredentialStore(), modelsPath: null, refreshOnCreate: false,
+  });
+  const ctx = { ...harness.ctx, model: { id: "unknown", provider: "unknown" },
+    modelRegistry: new ModelRegistry(runtime) };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await harness.commands.get("hypatia").handler(root, ctx);
+    assert.equal(harness.notices.at(-1).level, "error");
+    assert.match(harness.notices.at(-1).message, /^Choose a Pi model.*\/login.*\/model/);
+    assert.equal(readJson(join(root, ".hypatia/request.json")).status, "paused");
+    assert.equal(existsSync(join(evidenceDirectory(snapshot), "delivery.json")), false);
+  }
+  assert.deepEqual(harness.messages, []);
+});
+
+test("in-flight cancellation aborts Pi and a second synthesis cannot enter the active review", { timeout: 30000 }, async t => {
+  const { root, snapshot } = fixture();
+  const harness = commandHarness();
+  const parent = await modelFixture({ apiKey: { name: "Fixture", resolve: async () => ({ auth: { apiKey: "test-only" } }) } });
+  const controller = new AbortController();
+  let started, finishPrompt;
+  const prompting = new Promise(resolve => { started = resolve; });
+  t.mock.method(AgentSession.prototype, "prompt", async () => new Promise(resolve => {
+    finishPrompt = resolve;
+    started();
+  }));
+  const originalAbort = AgentSession.prototype.abort;
+  const aborted = t.mock.method(AgentSession.prototype, "abort", async function () {
+    await originalAbort.call(this);
+    finishPrompt();
+  });
+  const ctx = { ...harness.ctx, ...parent, signal: controller.signal };
+  const running = harness.commands.get("hypatia").handler(root, ctx);
+  await prompting;
+  await harness.commands.get("hypatia").handler(root, ctx);
+  assert.match(harness.notices.at(-1).message, /already has a running/);
+  controller.abort();
+  await running;
+  assert.equal(aborted.mock.callCount(), 1);
+  assert.match(harness.notices.at(-1).message, /cancelled/);
+  assert.equal(readJson(join(root, ".hypatia/request.json")).status, "paused");
+  assert.equal(existsSync(join(evidenceDirectory(snapshot), "delivery.json")), false);
+});
+
+test("successful refresh requests delegate upstream and never publish stale evidence", async t => {
+  const { root, snapshot } = fixture();
+  const harness = commandHarness();
+  const parent = await modelFixture({ apiKey: { name: "Fixture", resolve: async () => ({ auth: { apiKey: "test-only" } }) } });
+  t.mock.method(AgentSession.prototype, "prompt", async function () {
+    const tool = this.agent.state.tools.find(t => t.name === "request_callimachus");
+    await tool.execute("refresh", { reason: "Update the completed corpus" });
+  });
+  await harness.commands.get("hypatia").handler(root, { ...harness.ctx, ...parent });
+  const request = readJson(join(root, ".hypatia/request.json"));
+  assert.equal(request.status, "awaiting_callimachus");
+  assert.equal(request.previous_revision, snapshot.handoff.revision);
+  assert.match(harness.messages[0].message, /Update the completed corpus/);
+  assert.equal(harness.messages[0].options.deliverAs, "followUp");
+  assert.equal(existsSync(join(evidenceDirectory(snapshot), "delivery.json")), false);
 });

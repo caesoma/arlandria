@@ -78,7 +78,8 @@ def main():
     ap.add_argument("--stdout", action="store_true",
                     help="stream to stdout instead of writing a file (for piping)")
     a = ap.parse_args()
-    led = json.load(open(a.ledger))  # read-only: open directly, no ledger helpers needed
+    with open(a.ledger, encoding="utf-8") as stream:
+        led = json.load(stream)
     recs = effective_include(led)
 
     if a.stdout:  # piping mode: original behavior, nothing written to disk
@@ -89,7 +90,7 @@ def main():
     out_dir = a.out_dir or os.path.join(os.path.dirname(os.path.abspath(a.ledger)), "exports")
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, "references." + ("bib" if a.format == "bibtex" else "csv"))
-    with open(path, "w", newline="") as fh:  # newline="" so the csv writer doesn't double-space rows
+    with open(path, "w", newline="", encoding="utf-8") as fh:
         write_export(fh, a.format, recs)
     print(path)  # report where the deliverable landed
 

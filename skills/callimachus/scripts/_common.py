@@ -31,7 +31,7 @@ def _load_dotenv():
         f = root / ".env"
         if not f.exists():
             continue
-        for line in f.read_text().splitlines():
+        for line in f.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
@@ -43,6 +43,7 @@ _load_dotenv()  # so ARLANDRIA_EMAIL / S2_API_KEY can live in .env, not just the
 EMAIL = os.environ.get("ARLANDRIA_EMAIL", "arlandria@example.org")
 # mailto in the User-Agent = the "polite pool": higher rate limits on NCBI / OpenAlex / Unpaywall
 UA = {"User-Agent": f"arlandria/0.1 (mailto:{EMAIL})"}
+HTTP_TIMEOUT_SECONDS = 30
 
 
 def now():
@@ -67,7 +68,7 @@ def get(url, params=None, headers=None, tries=3):
     if headers:
         h.update(headers)  # caller extras (e.g. Semantic Scholar's x-api-key) win
     for i in range(tries):
-        r = requests.get(url, params=params, headers=h, timeout=30)
+        r = requests.get(url, params=params, headers=h, timeout=HTTP_TIMEOUT_SECONDS)
         if r.status_code == 429:
             time.sleep(2 ** i)  # 1s, 2s, 4s … then give up and raise
             continue
@@ -157,7 +158,8 @@ def ledger_entry(rec):
 def load_ledger(path):
     # open an existing ledger, or mint an empty one whose review_id names the review
     if os.path.exists(path):
-        return json.load(open(path))
+        with open(path, encoding="utf-8") as stream:
+            return json.load(stream)
     # review_id is the filename stem - but a generic "ledger" (the per-review-folder layout,
     # <base>/<slug>/ledger.json) takes its id from the containing folder name instead, so every
     # review's ledger can share the canonical name `ledger.json` without colliding on "ledger".
@@ -192,7 +194,8 @@ def recompute_stats(led):
 def save_ledger(path, led):
     led["updated"] = now()
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)  # create the review folder on first save
-    json.dump(led, open(path, "w"), indent=2, ensure_ascii=False)
+    with open(path, "w", encoding="utf-8") as stream:
+        json.dump(led, stream, indent=2, ensure_ascii=False)
 
 
 def norm_title(t):

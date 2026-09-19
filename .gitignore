@@ -4,6 +4,13 @@ reviews/
 outputs/
 *.log
 .env
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+.coverage*
+!.coveragerc
+coverage/
 
 # Review folders live at the chosen base (external by default, e.g. ~/arlandria-reviews).
 # Also ignore the in-package / legacy review artifacts so review data is never committed.

@@ -1,6 +1,6 @@
 ---
 name: hypatia
-description: Synthesize only completed Callimachus results into cited findings, author-stated gaps, author-proposed directions, resource-grounded opportunities, Markdown and SVG visuals. Delegates missing or updated research to the full Callimachus workflow; never searches.
+description: Synthesize only completed Callimachus results into cited findings, author-stated gaps, author-proposed directions, resource-grounded opportunities, Markdown, SVG visuals and LaTeX Beamer slides. Delegates missing or updated research to the full Callimachus workflow; never searches.
 ---
 
 # Hypatia
@@ -18,6 +18,11 @@ Inside the isolated session, the only tools are `hypatia_snapshot`,
 `hypatia_source`, `hypatia_save`, `hypatia_render`, and `request_callimachus`.
 There is no shell, general file reader, browser, network-search tool, source
 downloader, or upstream writer. Never perform research through another route.
+
+The host tools invoke Python implementations in `scripts/`. Completion,
+validation, persistence, and rendering are standalone Python; TypeScript only
+adapts these operations to Pi. The isolated model continues to use the five
+mediated tools above.
 
 Callimachus owns scoping, queries, searching, pooling, screening, acquisition,
 human decisions, and final full-text curation. Its step-8 export is insufficient.
@@ -85,9 +90,15 @@ Only its authenticated, completed snapshot is input to this workflow.
    Previous evidence versions remain in history, including corrected/retired
    claims. Fix validation errors before delivery.
 9. **Render with `hypatia_render`.** All sources must have a disposition.
-   Markdown, the brief, matrices, diagrams, and the audit are generated from
-   the same evidence and context. Never write an uncited replacement report or
-   use image generation to invent scientific diagrams.
+   Markdown, the brief, matrices, diagrams, the audit, and `slides.tex` are
+   generated from the same evidence and context. The minimal Beamer deck has
+   six frames (within the 4–8 slide range): review scope, approved Callimachus
+   criteria, Hypatia findings, gaps, author proposals and feasibility, and
+   coverage/constraints. It preserves claim/source locators and marks entries
+   omitted for space; the report retains the complete assessment.
+   Deliver the LaTeX source with the other visuals; the researcher can compile
+   it with LuaLaTeX. Never write an uncited replacement report or presentation,
+   or use image generation to invent scientific diagrams.
 
 ## Missing evidence and resume
 

@@ -31,7 +31,9 @@ function bundledPi() {
       }
       directory = dirname(directory);
     }
-  } catch {}
+  } catch (error) {
+    console.error(`Could not resolve bundled Pi: ${error instanceof Error ? error.message : String(error)}. Trying global pi.`);
+  }
   return null;
 }
 

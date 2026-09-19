@@ -6,20 +6,15 @@ import {
   createAgentSession, DefaultResourceLoader, defineTool, ModelRuntime, SessionManager, SettingsManager,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { EvidenceSchema } from "./schema.js";
-import { loadSnapshot, type Snapshot } from "./handoff.js";
-import { evidenceDirectory, loadContext, loadEvidence, saveEvidence, sourcePages } from "./evidence.js";
-import { render } from "./render.js";
-import { atomicWrite, inside, json } from "./storage.js";
+import { EvidenceSchema, evidenceDirectory, python, render, type Snapshot } from "./bridge.js";
 
 export const toolNames = ["hypatia_snapshot", "hypatia_source", "hypatia_save", "hypatia_render", "request_callimachus"];
-const result = (value: unknown) => ({ content: [{ type: "text" as const, text: json(value) }], details: {} });
+const result = (value: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) + "\n" }], details: {} });
 
 export function restrictedTools(snapshot: Snapshot, onRefresh: (reason: string) => void) {
   let awaitingCallimachus = false;
   const checked = () => {
     if (awaitingCallimachus) throw new Error("Awaiting a new completed Callimachus result");
-    loadSnapshot(snapshot.root, snapshot.handoff.revision);
   };
   return [
     defineTool({
@@ -28,8 +23,7 @@ export function restrictedTools(snapshot: Snapshot, onRefresh: (reason: string) 
       parameters: Type.Object({}),
       execute: async () => {
         checked();
-        return result({ handoff: snapshot.handoff, ledger: snapshot.ledger,
-          context: loadContext(snapshot), evidence: loadEvidence(snapshot) });
+        return result(python("snapshot", snapshot.root, {}, snapshot.handoff.revision));
       },
     }),
     defineTool({
@@ -40,12 +34,7 @@ export function restrictedTools(snapshot: Snapshot, onRefresh: (reason: string) 
       }),
       execute: async (_id, params) => {
         checked();
-        const pages = sourcePages(snapshot, params.source_id);
-        const page = pages.find(p => p.page === params.page);
-        if (!page) throw new Error("Page not found");
-        const end = Math.min(params.offset + 12000, page.text.length);
-        return result({ source_id: params.source_id, page: params.page, pages: pages.length,
-          text: page.text.slice(params.offset, end), next_offset: end < page.text.length ? end : null });
+        return result(python("source", snapshot.root, params, snapshot.handoff.revision));
       },
     }),
     defineTool({
@@ -54,12 +43,12 @@ export function restrictedTools(snapshot: Snapshot, onRefresh: (reason: string) 
       parameters: EvidenceSchema,
       execute: async (_id, document) => {
         checked();
-        return result({ digest: saveEvidence(snapshot, document) });
+        return result({ digest: python<string>("save", snapshot.root, document, snapshot.handoff.revision) });
       },
     }),
     defineTool({
       name: "hypatia_render", label: "Render report",
-      description: "Render Markdown, presentation brief, SVGs and audit from validated evidence. All sources must be reviewed or explicitly unreadable.",
+      description: "Render Markdown, presentation brief, six-slide LaTeX Beamer deck, SVGs and audit from validated evidence. All sources must be reviewed or explicitly unreadable.",
       parameters: Type.Object({}),
       execute: async () => {
         checked();
@@ -100,7 +89,7 @@ export async function hypatiaModelRuntime(ctx: Pick<ExtensionContext, "model" | 
   const { model, modelRegistry } = ctx;
   if (!model) throw new Error("Choose a Pi model before running Hypatia");
   const provider = modelRegistry.getProvider(model.provider);
-  if (!provider) throw new Error(`Unknown Pi provider: ${model.provider}`);
+  if (!provider) throw new Error(`Choose a Pi model before running Hypatia (/login, then /model). Unknown Pi provider: ${model.provider}`);
   const runtime = await ModelRuntime.create({
     credentials: new InMemoryCredentialStore(), modelsPath: null,
     refreshOnCreate: false, allowModelNetwork: false, signal: ctx.signal,
@@ -139,10 +128,10 @@ export async function synthesize(snapshot: Snapshot, ctx: ExtensionContext): Pro
   const options = await isolatedOptions(snapshot);
   const customTools = restrictedTools(snapshot, reason => {
     refresh = reason;
-    atomicWrite(inside(snapshot.root, ".hypatia/request.json"), json({
+    python("request-write", snapshot.root, {
       status: "awaiting_callimachus", question: snapshot.ledger.question,
       reason, previous_revision: snapshot.handoff.revision,
-    }));
+    });
   });
   const { session } = await createAgentSession({
     ...options, customTools, model: ctx.model,
@@ -160,11 +149,11 @@ export async function synthesize(snapshot: Snapshot, ctx: ExtensionContext): Pro
     if (ctx.signal?.aborted || session.agent.state.errorMessage)
       throw new Error(session.agent.state.errorMessage || "Hypatia was cancelled");
     if (!refresh) {
-      loadSnapshot(snapshot.root, snapshot.handoff.revision);
-      atomicWrite(inside(snapshot.root, ".hypatia/request.json"), json({
+      const directory = render(snapshot);
+      python("request-write", snapshot.root, {
         status: "delivered", question: snapshot.ledger.question, revision: snapshot.handoff.revision,
-        directory: render(snapshot),
-      }));
+        directory,
+      });
     }
     return refresh;
   } finally {
