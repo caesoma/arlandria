@@ -66,7 +66,9 @@ finalization there. Keep the original completion directory for historical audit.
 
 ## Evidence
 
-The executable schemas are in `extensions/hypatia/schema.ts`. Example:
+The shared JSON schemas are in `schemas.json`. Python validates them in
+`scripts/schema.py`; Pi reads the same evidence schema for its tool declaration.
+Example:
 
 ```json
 {
@@ -141,6 +143,10 @@ silently reused against a new revision.
 
 ### Beamer presentation
 
+The implementation is Python: `scripts/slides.py` builds the Beamer source,
+and `scripts/render.py` writes it with the Markdown, SVG, and audit artifacts.
+The Pi extension invokes `scripts/hypatia.py`; it contains no renderer.
+
 `slides.tex` is a standalone, minimal 16:9 Beamer document with six frames:
 review scope and provenance; approved Callimachus inclusion/exclusion criteria;
 Hypatia findings and disagreements; gaps and currency; author proposals and
@@ -166,6 +172,29 @@ explicitly counts omissions; it does not rank evidence. Frames shrink to fit
 when necessary rather than overflowing or adding slides. Full criteria, source
 quotations, references, and omitted assessments remain in `report.md`.
 Empty or inconclusive reviews still produce six frames with explicit empty states.
+
+### Standalone Python commands
+
+Run from the package checkout, or use an absolute path to the script:
+
+```bash
+uv run skills/hypatia/scripts/hypatia.py load-snapshot /path/to/review
+uv run skills/hypatia/scripts/hypatia.py render /path/to/review --revision <revision>
+uv run skills/hypatia/scripts/hypatia.py save /path/to/review --revision <revision> --input evidence.json
+```
+
+Operations accept a JSON payload on stdin or through `--input`, and return JSON
+on stdout. Failures return `{"error": "..."}` with a nonzero exit status.
+`uv` supplies Python 3.11+ and the pinned JSON Schema validator. Node and Pi are
+not required to run these scripts. Full evidence and context must already be
+saved before rendering; rendering does not perform synthesis.
+
+The Pi adapter only exposes snapshot/source/save/render/refresh tools to the
+isolated model. Gate approval and completion operations remain host operations
+invoked after the existing human confirmation dialog.
+Existing completed snapshots and evidence histories retain their formats.
+Python renderer version 3 creates a separate delivery directory from older
+renderers, preserving their historical outputs.
 
 `/hypatia question <question>` uses a stable review folder keyed by normalized
 question under the working directory's `reviews/`. Reuse that folder rather than

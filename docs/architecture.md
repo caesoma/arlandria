@@ -67,10 +67,16 @@ normal `.pi/` settings under the Callimachus name. `SYSTEM.md` is the standing s
 | Callimachus skill | [`skills/callimachus/SKILL.md`](../skills/callimachus/SKILL.md) | The 9-step loop, interactive gates, and screening discipline. |
 | Hypatia skill | [`skills/hypatia/SKILL.md`](../skills/hypatia/SKILL.md) | Findings, gaps, and literature-backed opportunities from completed reviews. |
 | Tools | [`skills/callimachus/scripts/`](../skills/callimachus/scripts/) | The deterministic Python I/O scripts (below). |
+| Hypatia scripts | [`skills/hypatia/scripts/`](../skills/hypatia/scripts/) | Python completion, snapshot verification, evidence validation/history, and Markdown/SVG/Beamer rendering. |
+| Pi bridge | [`extensions/hypatia/bridge.ts`](../extensions/hypatia/bridge.ts) | Invokes the Python CLI with JSON payloads; supplies its shared evidence schema to Pi. |
 | Schema | [`skills/callimachus/references/ledger_schema.md`](../skills/callimachus/references/ledger_schema.md) | The ledger's JSON contract + invariants. |
 | Ledger | `<base>/<slug>/ledger.json` (runtime) | Durable per-review state in one self-contained folder; the single source of truth. |
 
 Pi loads the TypeScript extensions directly via `jiti`, so there is no build step.
+Standalone skill implementations are Python. TypeScript is limited to Pi
+commands/tools, user interaction, session/model setup, and the subprocess bridge.
+The Node launcher and npm runtime-version check remain JavaScript because they
+bootstrap the Node/Pi runtime.
 
 ## Hypatia downstream boundary
 
@@ -107,7 +113,7 @@ approval commands, access limitations, and local trust assumptions.
 
 ## The scripts (deterministic tools, called via `bash`)
 
-All live in `skills/callimachus/scripts/` and share [`_common.py`](../skills/callimachus/scripts/_common.py).
+Callimachus scripts live in `skills/callimachus/scripts/` and share [`_common.py`](../skills/callimachus/scripts/_common.py).
 They are **self-bootstrapping**: each carries its dependencies inline (PEP 723) and is run with
 `uv run <script>`, which provisions a cached per-script environment — there is no `pip install` and no
 venv. The LLM always invokes them as `uv run scripts/X.py …`; a bare `python` run has no deps and
@@ -122,6 +128,19 @@ fails. `uv` is the only host prerequisite besides Node/Pi (the launcher prefligh
 | `resolve.py` | Resolve a legal open-access copy (OpenAlex best-OA → Unpaywall → Crossref); write `oa.*` back; mark closed-with-no-OA records `metadata-only` instead of dropping them. |
 | `pdf_extract.py` | Extract plain text from a PDF so the LLM can read the full paper. |
 | `export.py` | Export the effective-include set as BibTeX or CSV into the review's `exports/` (or `--stdout`). Re-runnable, non-terminal. |
+
+Hypatia's CLI is `uv run skills/hypatia/scripts/hypatia.py <operation> <review>`.
+It reads a JSON payload from stdin (or `--input`), returns JSON, and exits nonzero
+on failure. It works independently of Pi; the isolated model reaches it only
+through the host's restricted tool set.
+
+| Hypatia module | Does |
+|----------------|------|
+| `handoff.py` | Gate fingerprints, completion sealing, artifact copies, and snapshot verification. |
+| `evidence.py` | Page reads, provenance/feasibility validation, context, and evidence history. |
+| `render.py` / `slides.py` | Markdown, SVG, Beamer, and audit deliveries from validated evidence. |
+| `schema.py` / `storage.py` | Shared JSON Schema validation, safe paths, hashes, and atomic writes. |
+| `state.py` | Review folder and durable request state for the host's workflow coordination. |
 
 ## Control flow (the 9-step loop, abridged)
 

@@ -158,6 +158,21 @@ search tool, filesystem reader, extensions, skills, or project instructions.
 Any requested refresh returns to Callimachus and waits for a new completed result.
 The configured Pi model/authentication is reused for synthesis.
 
+All standalone skill work is Python. Hypatia's completion checks, evidence
+validation and history, source reads, and Markdown/SVG/Beamer rendering live in
+[`skills/hypatia/scripts/`](skills/hypatia/scripts/). TypeScript only connects
+the scripts to Pi's commands, tools, dialogs, sessions, and model authentication.
+Callimachus's existing scripts are also Python.
+
+You can re-render saved, validated evidence without starting Pi:
+
+```bash
+uv run skills/hypatia/scripts/hypatia.py render /path/to/review
+```
+
+The command returns the export directory as JSON. It verifies the completed
+Callimachus snapshot and researcher context before writing any delivery.
+
 See the [skill](skills/hypatia/SKILL.md) and
 [completion and evidence contracts](skills/hypatia/references/contracts.md)
 for setup, schemas, access limitations, resume behavior, and output locations.
@@ -172,8 +187,10 @@ npm run check
 uv run --with ruff==0.14.8 ruff check --select E9,F63,F7,F82 skills/callimachus/scripts/pdf_extract.py
 ```
 
-The native Node tests exercise deterministic primitives and the actual Pi SDK
-tool boundary without making a model request. A live literature run additionally
+`npm run check` includes Ruff, mypy, and Python standalone tests, plus TypeScript
+checks and Node tests of the Python bridge and actual Pi SDK tool boundary,
+without making a model request. Python checks also run independently with
+`uv run scripts/check-python.py`. A live literature run additionally
 requires the researcher's Pi model authentication, search credentials, papers,
 and human gate decisions.
 

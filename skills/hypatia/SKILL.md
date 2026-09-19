@@ -19,6 +19,11 @@ Inside the isolated session, the only tools are `hypatia_snapshot`,
 There is no shell, general file reader, browser, network-search tool, source
 downloader, or upstream writer. Never perform research through another route.
 
+The host tools invoke Python implementations in `scripts/`. Completion,
+validation, persistence, and rendering are standalone Python; TypeScript only
+adapts these operations to Pi. The isolated model continues to use the five
+mediated tools above.
+
 Callimachus owns scoping, queries, searching, pooling, screening, acquisition,
 human decisions, and final full-text curation. Its step-8 export is insufficient.
 Only its authenticated, completed snapshot is input to this workflow.

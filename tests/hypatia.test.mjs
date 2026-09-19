@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, symlinkSync, rmSync, existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { delimiter, join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { createJiti } from "jiti";
+import { createHmac } from "node:crypto";
+import {
+  approveGate, gateFingerprint, finalize, loadSnapshot, validateEvidence, saveEvidence, evidenceDirectory,
+  evidenceDigest, loadContext, loadEvidence, beamer, render, shortlist, hash, json, inside, python,
+} from "./python-bridge.mjs";
 import { createAssistantMessageEventStream, InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import {
   AgentSession, DefaultResourceLoader, ModelRegistry, ModelRuntime,
@@ -17,11 +22,7 @@ const originalHome = process.env.HOME;
 process.env.HOME = sandbox;
 after(() => { process.env.HOME = originalHome; rmSync(sandbox, { recursive: true }); });
 const jiti = createJiti(import.meta.url);
-const { approveGate, gateFingerprint, finalize, loadSnapshot } = await jiti.import("../extensions/hypatia/handoff.ts");
-const { validateEvidence, saveEvidence, evidenceDirectory, evidenceDigest, loadContext, loadEvidence } = await jiti.import("../extensions/hypatia/evidence.ts");
-const { beamer, render, shortlist } = await jiti.import("../extensions/hypatia/render.ts");
 const { restrictedTools, isolatedOptions, hypatiaModelRuntime, toolNames } = await jiti.import("../extensions/hypatia/runtime.ts");
-const { hash, json, inside } = await jiti.import("../extensions/hypatia/storage.ts");
 const { default: extension, pauseRequest } = await jiti.import("../extensions/hypatia/index.ts");
 const { default: callimachus } = await jiti.import("../extensions/callimachus/index.ts");
 
@@ -290,7 +291,7 @@ test("renderer upgrades produce Beamer without mutating pre-Beamer deliveries", 
   assert.equal(existsSync(join(oldDirectory, "slides.tex")), false);
   assert.equal(render(snapshot), output);
   assert.equal(readJson(join(root, "delivery.json")).directory, output);
-  assert.equal(readJson(join(output, "provenance.json")).renderer_version, 2);
+  assert.equal(readJson(join(output, "provenance.json")).renderer_version, 3);
 });
 
 test("early exports, missing gates, stale criteria, borderlines, and non-human curation are blocked", () => {
@@ -691,4 +692,61 @@ test("source-free completed reviews produce a truthful empty report", () => {
   writeJson(join(evidenceDirectory(snapshot), "context.json"), context);
   saveEvidence(snapshot, loadEvidence(snapshot));
   assert.match(readFileSync(join(render(snapshot), "report.md"), "utf8"), /No supported findings/);
+});
+
+test("Python accepts legacy Node gate fingerprints and completion seals", () => {
+  const { root, ledger, snapshot } = fixture({ fulltext: true });
+  const fingerprint = hash(json({ question: ledger.question, criteria: ledger.criteria }));
+  assert.equal(gateFingerprint(root, "criteria"), fingerprint);
+  const { seal, ...unsigned } = snapshot.handoff;
+  const key = readFileSync(join(sandbox, ".arlandria/completion.key"));
+  const legacySeal = createHmac("sha256", key).update(json(unsigned)).digest("hex");
+  assert.equal(seal, legacySeal);
+  writeJson(join(snapshot.directory, "handoff.json"), { ...unsigned, seal: legacySeal });
+  assert.equal(loadSnapshot(root).handoff.revision, snapshot.handoff.revision);
+});
+
+test("standalone Python delivery works outside the package without Node or Pi on PATH", () => {
+  const { root, snapshot } = fixture();
+  saveEvidence(snapshot, evidence(snapshot));
+  const uv = process.env.PATH.split(delimiter)
+    .map(directory => join(directory, process.platform === "win32" ? "uv.exe" : "uv")).find(existsSync);
+  assert.ok(uv, "uv must be installed");
+  const result = spawnSync(uv, ["run", "--script", resolve("skills/hypatia/scripts/hypatia.py"),
+    "render", root, "--revision", snapshot.handoff.revision], {
+    cwd: sandbox, encoding: "utf8", input: "", env: { ...process.env, PATH: "" },
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(readFileSync(join(output, "slides.tex"), "utf8").match(/\\begin\{frame\}/g).length, 6);
+});
+
+test("Pi's Python source tool paginates Unicode and rejects stale review revisions", async () => {
+  const { root, ledger } = fixture({ completed: false });
+  ledger.records[0].abstract = "α😀".repeat(13000);
+  writeJson(join(root, "ledger.json"), ledger);
+  for (const gate of ["criteria", "triage", "curation"]) approveGate(root, gate, gateFingerprint(root, gate));
+  finalize(root);
+  const snapshot = loadSnapshot(root);
+  const tool = restrictedTools(snapshot, () => {}).find(t => t.name === "hypatia_source");
+  let text = "", offset = 0;
+  do {
+    const result = await tool.execute("page", { source_id: "paper-1", page: 1, offset });
+    const page = JSON.parse(result.content[0].text);
+    text += page.text;
+    offset = page.next_offset;
+  } while (offset !== null);
+  assert.equal(text, ledger.records[0].abstract);
+  await assert.rejects(tool.execute("external", { source_id: "unknown", page: 1, offset: 0 }), /not in/);
+  finalize(root);
+  await assert.rejects(tool.execute("stale", { source_id: "paper-1", page: 1, offset: 0 }), /newer/);
+});
+
+test("Python CLI rejects malformed data and Pi declarations share its evidence schema", () => {
+  const { snapshot } = fixture();
+  const tools = restrictedTools(snapshot, () => {});
+  const schema = python("schema", snapshot.root, { name: "Evidence" });
+  assert.deepEqual(JSON.parse(JSON.stringify(tools.find(t => t.name === "hypatia_save").parameters)), schema);
+  assert.throws(() => saveEvidence(snapshot, { ...evidence(snapshot), claims: "invalid" }), /Invalid data/);
+  assert.throws(() => python("source", snapshot.root, { source_id: "paper-1", page: 1, offset: -1 }), /Invalid page/);
 });
