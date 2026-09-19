@@ -4,7 +4,6 @@
 // and `/literature-review` are available immediately. No build step: the
 // extension is TypeScript loaded by Pi via jiti, and this launcher is plain JS.
 import { spawn, spawnSync } from "node:child_process";
-import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
@@ -20,14 +19,18 @@ if (!process.env.CALLIMACHUS_QUIET) {
 // Prefer the Pi binary bundled as our dependency; fall back to a global `pi`.
 function bundledPi() {
   try {
-    const req = createRequire(import.meta.url);
-    const metaPath = req.resolve("@earendil-works/pi-coding-agent/package.json");
-    const meta = JSON.parse(readFileSync(metaPath, "utf8"));
-    let bin = meta.bin;
-    if (bin && typeof bin === "object") bin = bin.pi ?? Object.values(bin)[0];
-    if (typeof bin === "string") {
-      const p = join(dirname(metaPath), bin);
-      if (existsSync(p)) return p;
+    let directory = dirname(fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent")));
+    while (dirname(directory) !== directory) {
+      const metaPath = join(directory, "package.json");
+      if (existsSync(metaPath)) {
+        const meta = JSON.parse(readFileSync(metaPath, "utf8"));
+        if (meta.name === "@earendil-works/pi-coding-agent") {
+          const bin = typeof meta.bin === "string" ? meta.bin : meta.bin?.pi;
+          const path = typeof bin === "string" ? join(directory, bin) : null;
+          return path && existsSync(path) ? path : null;
+        }
+      }
+      directory = dirname(directory);
     }
   } catch {}
   return null;

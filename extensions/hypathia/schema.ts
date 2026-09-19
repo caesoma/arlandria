@@ -23,7 +23,10 @@ export const LedgerSchema = Type.Object({
   review_id: text,
   question: text,
   criteria: Type.Object({ version: Type.Integer({ minimum: 1 }), include: strings, exclude: strings }),
-  queries: Type.Array(Type.Object({})),
+  queries: Type.Array(Type.Object({
+    id: text, round: Type.Integer({ minimum: 1 }), source: text,
+    query_string: text, run_at: text, n_returned: Type.Integer({ minimum: 0 }),
+  })),
   records: Type.Array(Type.Object({
     id: text, title: text, abstract: Type.Union([Type.String(), Type.Null()]),
     year: Type.Union([Type.Integer(), Type.Null()]),

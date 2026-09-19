@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { createJiti } from "jiti";
-import { AuthStorage, ModelRegistry, createAgentSession } from "@earendil-works/pi-coding-agent";
+import { AgentSession, AuthStorage, ModelRegistry, createAgentSession } from "@earendil-works/pi-coding-agent";
 
 const sandbox = mkdtempSync(join(homedir(), ".hypathia-tests-"));
 // Keep signing keys and SDK discovery isolated from the developer's real home.
@@ -18,7 +18,7 @@ const { validateEvidence, saveEvidence, evidenceDirectory, loadEvidence } = awai
 const { render, shortlist } = await jiti.import("../extensions/hypathia/render.ts");
 const { restrictedTools, isolatedOptions, toolNames } = await jiti.import("../extensions/hypathia/runtime.ts");
 const { hash, json, inside } = await jiti.import("../extensions/hypathia/storage.ts");
-const { default: extension } = await jiti.import("../extensions/hypathia/index.ts");
+const { default: extension, pauseRequest } = await jiti.import("../extensions/hypathia/index.ts");
 
 const text = "We found an association, not causation. Rural settings remain untested. Future work should evaluate rural clinics.";
 const writeJson = (path, value) => writeFileSync(path, json(value));
@@ -33,7 +33,8 @@ function fixture({ fulltext = false, completed = true } = {}) {
   const ledger = {
     review_id: "test-review", question: "What is established about this association?",
     criteria: { version: 1, include: ["Relevant evidence"], exclude: [] },
-    queries: [{ id: "q1", query: "completed upstream search", at: "2026-09-19" }],
+    queries: [{ id: "q1", round: 1, source: "fixture", query_string: "completed upstream search",
+      run_at: "2026-09-19", n_returned: 1 }],
     records: [{
       id: "paper-1", title: "Synthetic fixture, not research evidence", abstract: text,
       year: 2025, doi: null, authors: ["Fixture Author"], status: "active",
@@ -295,6 +296,85 @@ test("declining curation never finalizes or synthesizes", async () => {
     cwd: sandbox, hasUI: true, ui: { confirm: async () => false, notify: () => {} },
   });
   assert.equal(existsSync(join(root, ".callimachus/current.json")), false);
+});
+
+test("interrupted synthesis preserves its upstream refresh requirement across sessions", async () => {
+  const { root, snapshot } = fixture();
+  const path = join(root, ".hypathia/request.json");
+  const pending = { status: "awaiting_callimachus", question: snapshot.ledger.question,
+    reason: "Update the evidence", previous_revision: snapshot.handoff.revision };
+  writeJson(path, pending);
+  pauseRequest(root, snapshot.ledger.question);
+  assert.deepEqual(readJson(path), pending);
+  const commands = new Map();
+  const notices = [];
+  extension({ registerCommand: (name, value) => commands.set(name, value), registerTool: () => {}, sendUserMessage: () => {} });
+  await commands.get("hypathia").handler(root, {
+    cwd: sandbox, hasUI: false, ui: { notify: message => notices.push(message) },
+  });
+  assert.deepEqual(notices, ["Waiting for Callimachus to finish a new revision."]);
+  writeJson(path, { status: "synthesizing", question: snapshot.ledger.question });
+  pauseRequest(root, snapshot.ledger.question);
+  assert.equal(readJson(path).status, "paused");
+});
+
+test("bundled CLI launches outside the repository without a global pi or npm PATH", () => {
+  const result = spawnSync(process.execPath, [resolve("bin/arlandria.js"), "--offline", "--version"], {
+    cwd: sandbox, encoding: "utf8",
+    env: { ...process.env, PATH: "/usr/bin:/bin", CALLIMACHUS_SKIP_UV_CHECK: "1", CALLIMACHUS_QUIET: "1" },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout + result.stderr, /^\d+\.\d+\.\d+\s*$/);
+});
+
+test("transport failure after a refresh tool call never releases the old snapshot", async t => {
+  const { root, snapshot } = fixture();
+  t.mock.method(AgentSession.prototype, "prompt", async function () {
+    const refresh = this.agent.state.tools.find(tool => tool.name === "request_callimachus");
+    await refresh.execute("refresh", { reason: "An upstream update is necessary." });
+    throw new Error("Synthetic connection interrupted");
+  });
+  const commands = new Map();
+  const notices = [];
+  const authStorage = AuthStorage.inMemory();
+  const modelRegistry = ModelRegistry.inMemory(authStorage);
+  extension({ registerCommand: (name, value) => commands.set(name, value), registerTool: () => {}, sendUserMessage: () => {} });
+  const ctx = { cwd: sandbox, hasUI: false, modelRegistry, model: modelRegistry.getAll()[0],
+    ui: { notify: message => notices.push(message), setStatus: () => {} } };
+  await commands.get("hypathia").handler(root, ctx);
+  const request = readJson(join(root, ".hypathia/request.json"));
+  assert.equal(request.status, "awaiting_callimachus");
+  assert.equal(request.previous_revision, snapshot.handoff.revision);
+  assert.match(notices[0], /Synthetic connection interrupted/);
+  await commands.get("hypathia").handler(root, ctx);
+  assert.match(notices[1], /Waiting for Callimachus/);
+});
+
+test("cached report selections update the delivery pointer when evidence is restored", () => {
+  const { snapshot } = fixture();
+  const document = evidence(snapshot);
+  saveEvidence(snapshot, document);
+  const first = render(snapshot);
+  const second = structuredClone(document);
+  second.findings[0].strength = "An updated appraisal of the same source.";
+  saveEvidence(snapshot, second);
+  assert.notEqual(render(snapshot), first);
+  saveEvidence(snapshot, document);
+  assert.equal(render(snapshot), first);
+  assert.equal(readJson(join(evidenceDirectory(snapshot), "delivery.json")).directory, first);
+});
+
+test("failed and cancelled handoffs and malformed search audits cannot complete", () => {
+  const { root, snapshot } = fixture();
+  const path = join(snapshot.directory, "handoff.json");
+  for (const status of ["failed", "cancelled", "pending"]) {
+    writeJson(path, { ...snapshot.handoff, status });
+    assert.throws(() => loadSnapshot(root), /Invalid data/);
+  }
+  const incomplete = fixture({ completed: false });
+  incomplete.ledger.queries = [{}];
+  writeJson(join(incomplete.root, "ledger.json"), incomplete.ledger);
+  assert.throws(() => finalize(incomplete.root), /Invalid data/);
 });
 
 test("PDF extractor retains plain-text CLI behavior and emits page hashes/warnings", () => {

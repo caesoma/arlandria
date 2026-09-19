@@ -69,6 +69,39 @@ normal `.pi/` settings under the Callimachus name. `SYSTEM.md` is the standing s
 
 The extension is the only TypeScript; Pi loads it directly via `jiti`, so there is no build step.
 
+## Hypathia downstream boundary
+
+The Arlandria launcher also loads `extensions/hypathia/index.ts` and
+`skills/hypathia/`. Callimachus still owns every research stage, including
+full-text acquisition and human curation:
+
+```text
+Callimachus ledger + sources.json + human gate approvals
+    → finalizer → .callimachus/completed/<revision>/handoff.json
+    → isolated Hypathia session → validated evidence → Markdown / SVG / audit
+```
+
+The early step-8 export is non-terminal. `/callimachus-approve curation` checks
+criteria/triage approvals, search audit entries, screening, and final human
+dispositions before publishing a sealed, versioned snapshot with source hashes.
+Changing upstream evidence invalidates the handoff until Callimachus completes
+again.
+
+`/hypathia <folder>` starts a Pi SDK session with only five mediated tools:
+snapshot read, page read, evidence save, render, and request Callimachus. Its
+resource loader inherits no extensions, skills, prompts, or project context.
+The tool allowlist has no shell, arbitrary file access, search, downloader, or
+upstream writer. The parent session retains Callimachus's normal capabilities.
+
+Evidence is stored separately under `.hypathia/<revision>/`, with historical
+digests. Quotes are checked against their page, while semantic support remains
+an explicit assessment. Author gap/limitation claims support gaps; author
+direction claims support opportunities; researcher-provided resources constrain
+feasibility. Reports and visuals use the same validated evidence and context.
+Refresh requests suspend synthesis until a new completed revision exists.
+See [the contracts](../skills/hypathia/references/contracts.md) for schemas,
+approval commands, access limitations, and local trust assumptions.
+
 ## The scripts (deterministic tools, called via `bash`)
 
 All live in `skills/literature-review/scripts/` and share [`_common.py`](../skills/literature-review/scripts/_common.py).

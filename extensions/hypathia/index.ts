@@ -13,6 +13,12 @@ const RequestSchema = Type.Object({
   reason: Type.Optional(Type.String()), previous_revision: Type.Optional(Type.String()),
 });
 
+export function pauseRequest(root: string, question: string) {
+  const path = inside(root, ".hypathia/request.json");
+  if (existsSync(path) && parse(RequestSchema, readJson(path)).status === "awaiting_callimachus") return;
+  atomicWrite(path, json({ status: "paused", question }));
+}
+
 export default function hypathia(pi: ExtensionAPI): void {
   const active = new Set<string>();
   const notifyError = (ctx: ExtensionContext, error: unknown) =>
@@ -79,7 +85,7 @@ export default function hypathia(pi: ExtensionAPI): void {
       if (refresh) delegate(root, refresh);
       else ctx.ui.notify(`Hypathia delivered. Output details: ${inside(directory, "delivery.json")}`, "info");
     } catch (error) {
-      atomicWrite(requestPath, json({ status: "paused", question: snapshot.ledger.question }));
+      pauseRequest(root, snapshot.ledger.question);
       throw error;
     } finally { active.delete(root); }
   }

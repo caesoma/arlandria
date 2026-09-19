@@ -106,6 +106,30 @@ export function svg(title: string, description: string, rows: string[]): string 
 <rect width="100%" height="100%" fill="white"/><g fill="#172b4d" font-family="sans-serif">${content}</g></svg>\n`;
 }
 
+export function tableSvg(title: string, description: string, columns: { label: string; width: number }[], rows: string[][]): string {
+  const elements: string[] = [];
+  let y = 125;
+  for (const [index, row] of [columns.map(c => c.label), ...rows].entries()) {
+    const cells = row.map((value, i) => wrap(value, Math.max(8, Math.floor((columns[i].width - 24) / 8.5))));
+    const height = Math.max(...cells.map(lines => lines.length)) * 23 + 24;
+    let x = 25;
+    for (const [i, lines] of cells.entries()) {
+      elements.push(`<rect x="${x}" y="${y}" width="${columns[i].width}" height="${height}" fill="${index === 0 ? "#e6edf5" : index % 2 ? "#ffffff" : "#f4f7fb"}" stroke="#bdcbdc"/>`);
+      for (const [line, value] of lines.entries())
+        elements.push(`<text x="${x + 12}" y="${y + 26 + line * 23}" font-weight="${index === 0 ? 600 : 400}">${xml(value)}</text>`);
+      x += columns[i].width;
+    }
+    y += height;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title description" viewBox="0 0 1150 ${y + 35}">
+<title id="title">${xml(title)}</title><desc id="description">${xml(description)}</desc>
+<rect width="100%" height="100%" fill="white"/>
+<g fill="#172b4d" font-family="sans-serif" font-size="15">
+<text x="25" y="38" font-size="24" font-weight="600">${xml(title)}</text>
+${wrap(description, 115).map((line, i) => `<text x="25" y="${67 + i * 22}">${xml(line)}</text>`).join("\n")}
+${elements.join("\n")}</g></svg>\n`;
+}
+
 export function render(snapshot: Snapshot): string {
   loadSnapshot(snapshot.root, snapshot.handoff.revision);
   const evidence = loadEvidence(snapshot);
@@ -114,7 +138,10 @@ export function render(snapshot: Snapshot): string {
   const digest = evidenceDigest(snapshot);
   const root = evidenceDirectory(snapshot);
   const directory = inside(root, `exports/${digest}`);
-  if (existsSync(directory)) return directory;
+  if (existsSync(directory)) {
+    atomicWrite(inside(root, "delivery.json"), json({ digest, directory }));
+    return directory;
+  }
   const staging = inside(root, `exports/${digest}.${randomUUID()}.partial`);
   mkdirSync(staging, { recursive: true });
   const save = (name: string, data: string | Buffer) => writeFileSync(join(staging, name), data, { flag: "wx" });
@@ -131,16 +158,33 @@ export function render(snapshot: Snapshot): string {
     ...evidence.claims.filter(c => c.verification.status !== "supported").map(c => `- ${c.id}: ${c.verification.status} — ${md(c.verification.reason)}`),
   ].join("\n") + "\n");
   const caption = `Cutoff ${snapshot.handoff.cutoff}. ${snapshot.handoff.included_ids.length} included publications; counts are not evidence strength.`;
-  save("evidence-matrix.svg", svg("Evidence matrix", caption, [
-    "Legend: supported / uncertain / contradicted are verification decisions. IDs resolve in the report audit.",
-    ...snapshot.handoff.sources.map(s => `${s.record_id} [${s.kind}]: ${evidence.claims.filter(c => c.source_id === s.record_id).map(c => `${c.id} ${c.kind} (${c.verification.status})`).join("; ") || "no claims extracted"}`),
-  ]));
-  save("opportunity-matrix.svg", svg("Opportunity matrix", caption, [
-    "Columns: opportunity | gap status | effort assessment | unknowns | author-proposal evidence",
-    ...evidence.opportunities.map(o => `${o.id} | ${evidence.gaps.find(g => g.id === o.gap_id)!.status} | ${o.feasibility.effort} | ${o.feasibility.unknowns.join("; ") || "none recorded"} | ${o.direction_claim_ids.join(", ")}`),
-  ]));
-  save("gap-directions.svg", svg("Literature gaps → author-proposed directions", caption,
-    evidence.opportunities.map(o => `${o.gap_id} (${evidence.gaps.find(g => g.id === o.gap_id)!.claim_ids.join(", ")}) → ${o.id}: ${opportunityText(evidence, o)} (${o.direction_claim_ids.join(", ")})`)));
+  const cells = (sourceId: string, kinds: string[]) => evidence.claims
+    .filter(c => c.source_id === sourceId && kinds.includes(c.kind))
+    .map(c => `${c.id} (${c.verification.status})`).join("; ") || "No extracted claims";
+  save("evidence-matrix.svg", tableSvg("Evidence matrix — claim IDs and verification status", caption, [
+    { label: "Publication / access", width: 240 }, { label: "Findings", width: 215 },
+    { label: "Gaps / limitations", width: 215 }, { label: "Author proposals", width: 215 },
+    { label: "Context", width: 215 },
+  ], snapshot.handoff.sources.map(s => [
+    `${s.record_id} [${s.kind}]`, cells(s.record_id, ["finding"]), cells(s.record_id, ["gap", "limitation"]),
+    cells(s.record_id, ["direction"]), cells(s.record_id, ["context"]),
+  ])));
+  save("opportunity-matrix.svg", tableSvg("Opportunity matrix — feasibility is Hypathia's assessment", caption, [
+    { label: "Opportunity", width: 125 }, { label: "Gap / status", width: 290 },
+    { label: "Effort", width: 110 }, { label: "Unknowns", width: 325 },
+    { label: "Author-proposal evidence", width: 250 },
+  ], evidence.opportunities.map(o => [
+    o.id, `${o.gap_id}: ${evidence.gaps.find(g => g.id === o.gap_id)!.status}`, o.feasibility.effort,
+    o.feasibility.unknowns.join("; ") || "None recorded", o.direction_claim_ids.join(", "),
+  ])));
+  save("gap-directions.svg", tableSvg("Literature gaps → author-proposed directions", caption, [
+    { label: "Gap / source claims", width: 475 }, { label: "Link", width: 70 },
+    { label: "Author direction / source claims", width: 555 },
+  ], evidence.opportunities.map(o => {
+    const gap = evidence.gaps.find(g => g.id === o.gap_id)!;
+    return [`${gap.id}: ${gap.statement} [${gap.claim_ids.join(", ")}] (${gap.status})`, "→",
+      `${o.id}: ${opportunityText(evidence, o)} [${o.direction_claim_ids.join(", ")}]`];
+  })));
   save("review-flow.svg", svg("Callimachus review flow", caption, [
     `${snapshot.ledger.queries.length} recorded query audit entries → ${snapshot.ledger.records.length} deduplicated publications → ${snapshot.handoff.included_ids.length} final included publications.`,
     `Deferred: ${snapshot.ledger.records.filter(r => r.status === "deferred").length}.`,
