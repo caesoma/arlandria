@@ -1,14 +1,14 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-// Callimachus registers two first-class slash commands as aliases for one
+// Arlandria registers two first-class slash commands as aliases for one
 // workflow, so you type `/litreview` or `/literature-review` instead of
-// `/skill:literature-review`. The command kicks the agent off on the skill's
-// 9-step loop; the workflow itself lives in skills/literature-review/SKILL.md.
+// `/skill:callimachus`. The command kicks the agent off on the skill's
+// 9-step loop; the workflow itself lives in skills/callimachus/SKILL.md.
 
 function kickoff(args: string): string {
   const q = args.trim();
   return [
-    'Load the "literature-review" skill (read its SKILL.md) and follow its 9-step workflow.',
+    'Load the "callimachus" skill (read its SKILL.md) and follow its 9-step workflow.',
     q
       ? `Research question / instruction: ${q}`
       : "If I have not given a research question yet, ask me for one before doing anything else.",
@@ -22,9 +22,9 @@ function kickoff(args: string): string {
   ].join("\n");
 }
 
-export default function callimachus(pi: ExtensionAPI): void {
+export default function arlandria(pi: ExtensionAPI): void {
   const definition = {
-    description: "Start or resume a semi-automated literature review (Callimachus)",
+    description: "Start or resume a semi-automated literature review (Arlandria)",
     handler: async (args: string) => {
       pi.sendUserMessage(kickoff(args), { deliverAs: "followUp" });
     },

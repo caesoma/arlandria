@@ -7,19 +7,11 @@
 # ///
 """Merge search-result JSON files into the ledger; log the queries that were run.
 
-Workflow step 4 (Pool): takes the saved outputs of several search.py runs (lean search records) and
-folds them into one ledger of rich entries, collapsing duplicates that surfaced from more than one
-backend. Each lean record is first mapped to a ledger entry (`ledger_entry`), then matched against
-what's already in the ledger by this precedence:
+Workflow step 4 (Pool): takes the saved outputs of several search.py runs (lean search records) and folds them into one ledger of rich entries, collapsing duplicates that surfaced from more than one backend. Each lean record is first mapped to a ledger entry (`ledger_entry`), then matched against what's already in the ledger by this precedence:
 
   DOI  ->  arXiv id  ->  PMID  ->  normalized(title) + year
 
-A duplicate is *merged* (union sources + ids, backfill missing fields), never re-added - so a
-screening decision is never overwritten or duplicated. A preprint and its version-of-record collapse
-into one entry (VoR = the final peer-reviewed published article; a preprint is its earlier, un-reviewed
-form): when an incoming record carries a DOI and the stored one did not (preprint -> VoR),
-we upgrade to the VoR's metadata while keeping BOTH source ids. The stored entry's stable `id` does
-not change. Each input file is recorded in the ledger's query log with an incrementing round number.
+A duplicate is *merged* (union sources + ids, backfill missing fields), never re-added - so a screening decision is never overwritten or duplicated. A preprint and its version-of-record collapse into one entry (VoR = the final peer-reviewed published article; a preprint is its earlier, un-reviewed form): when an incoming record carries a DOI and the stored one did not (preprint -> VoR), we upgrade to the VoR's metadata while keeping BOTH source ids. The stored entry's stable `id` does not change. Each input file is recorded in the ledger's query log with an incrementing round number.
 
 --exclude-known OTHER.json drops records already screened in another ledger
 (mode-3 cross-review search), so a new review doesn't re-litigate old ground.
@@ -50,8 +42,7 @@ def index(r, by_doi, by_arxiv, by_pmid, by_ty):
 
 
 def merge(ex, le):
-    """Fold incoming ledger entry `le` into the already-stored `ex` in place. Preserves ex's id and
-    its screening decision; unions provenance; upgrades to version-of-record metadata when warranted."""
+    """Fold incoming ledger entry `le` into the already-stored `ex` in place. Preserves ex's id and its screening decision; unions provenance; upgrades to version-of-record metadata when warranted."""
     for s in le["sources"]:
         if s not in ex["sources"]:
             ex["sources"].append(s)  # union the backends that surfaced it

@@ -1,6 +1,6 @@
-# Architecture — how Callimachus is plumbed together
+# Architecture — how Arlandria is plumbed together
 
-Callimachus is a [Pi](https://pi.dev) package that adds a semi-automated `literature-review` skill.
+Arlandria is a [Pi](https://pi.dev) package that adds the semi-automated `callimachus` skill.
 This document is the map: what the pieces are, how they connect, and how a request flows from a typed
 question to a BibTeX file.
 
@@ -16,7 +16,7 @@ ledger**, `<base>/<slug>/ledger.json` (one self-contained folder per review) —
 research question
       │
       ▼
-  Pi's LLM ──reads──▶ skills/literature-review/SKILL.md   (the 9-step workflow)
+  Pi's LLM ──reads──▶ skills/callimachus/SKILL.md   (the 9-step workflow)
       │
       │ calls via `bash`
       ▼
@@ -34,44 +34,40 @@ The package declares its Pi contributions in [`package.json`](../package.json) u
 "pi": { "skills": ["./skills"], "prompts": ["./prompts"], "extensions": ["./extensions"] }
 ```
 
-When Pi loads `callimachus` as a package (`{ "packages": ["npm:callimachus"] }` in the user's Pi
+When Pi loads `arlandria` as a package (`{ "packages": ["npm:arlandria"] }` in the user's Pi
 settings), it auto-discovers the skill, the `/litreview` prompt, and the slash-command extension.
 
 There are two ways to run it:
 
 - **As a Pi package** — add it to Pi settings; then just talk to `pi`.
-- **As a branded CLI** — the `cal` / `callimachus` launcher
-  ([`bin/callimachus.js`](../bin/callimachus.js)) prints the banner and spawns Pi with the skill and
-  extension already on the path:
+- **As a branded CLI** — the `cal` / `arlandria` launcher
+  ([`bin/arlandria.js`](../bin/arlandria.js)) prints the banner and spawns Pi with the skill and extension already on the path:
 
   ```
-  pi -e extensions/litreview/index.ts --skill skills/literature-review  …
+  pi -e extensions/litreview/index.ts --skill skills/callimachus  …
   ```
 
   It prefers the Pi binary bundled as a dependency and falls back to a global `pi`.
 
-The `.callimachus/` directory (`SYSTEM.md` + `settings.json`) is the rebranded Pi config dir — Pi's
-normal `.pi/` settings under the Callimachus name. `SYSTEM.md` is the standing system instruction
-("you are a literature-review assistant…"); `settings.json` holds Pi harness settings (`packages`,
-`quietStartup`, `collapseChangelog`).
+The `.arlandria/` directory (`SYSTEM.md` + `settings.json`) is the rebranded Pi config dir — Pi's normal `.pi/` settings under the Arlandria name. `SYSTEM.md` is the standing system instruction ("you are a callimachus assistant…"); `settings.json` holds Pi harness settings (`packages`, `quietStartup`, `collapseChangelog`).
 
 ## The moving parts
 
 | Piece | Path | Role |
 |------|------|------|
-| Launcher | [`bin/callimachus.js`](../bin/callimachus.js) | Branded entry point (`cal`); banner, then hands off to Pi. |
+| Launcher | [`bin/arlandria.js`](../bin/arlandria.js) | Branded entry point (`cal`); banner, then hands off to Pi. |
 | Extension | [`extensions/litreview/index.ts`](../extensions/litreview/index.ts) | Registers the `/litreview` and `/literature-review` slash commands; kicks the LLM into the skill's workflow. |
 | Prompt | [`prompts/litreview.md`](../prompts/litreview.md) | The `/litreview` slash-command body — disciplines + handoff to the skill. |
-| Skill | [`skills/literature-review/SKILL.md`](../skills/literature-review/SKILL.md) | **The workflow** the LLM follows: the 9-step loop, the interactive gates, the screening discipline. |
-| Tools | [`skills/literature-review/scripts/`](../skills/literature-review/scripts/) | The deterministic Python I/O scripts (below). |
-| Schema | [`skills/literature-review/references/ledger_schema.md`](../skills/literature-review/references/ledger_schema.md) | The ledger's JSON contract + invariants. |
+| Skill | [`skills/callimachus/SKILL.md`](../skills/callimachus/SKILL.md) | **The workflow** the LLM follows: the 9-step loop, the interactive gates, the screening discipline. |
+| Tools | [`skills/callimachus/scripts/`](../skills/callimachus/scripts/) | The deterministic Python I/O scripts (below). |
+| Schema | [`skills/callimachus/references/ledger_schema.md`](../skills/callimachus/references/ledger_schema.md) | The ledger's JSON contract + invariants. |
 | Ledger | `<base>/<slug>/ledger.json` (runtime) | Durable per-review state in one self-contained folder; the single source of truth. |
 
 The extension is the only TypeScript; Pi loads it directly via `jiti`, so there is no build step.
 
 ## The scripts (deterministic tools, called via `bash`)
 
-All live in `skills/literature-review/scripts/` and share [`_common.py`](../skills/literature-review/scripts/_common.py).
+All live in `skills/callimachus/scripts/` and share [`_common.py`](../skills/callimachus/scripts/_common.py).
 They are **self-bootstrapping**: each carries its dependencies inline (PEP 723) and is run with
 `uv run <script>`, which provisions a cached per-script environment — there is no `pip install` and no
 venv. The LLM always invokes them as `uv run scripts/X.py …`; a bare `python` run has no deps and
@@ -112,7 +108,7 @@ deliberately decoupled: the list ships fast; reading happens later and never blo
   via `_common.ledger_entry()`, minting the stable `id` (lowercased DOI, else a title hash) and the
   empty screening/assessment blocks. Search output stays lean; screening state lives only in the ledger.
 - **The ledger** — `<base>/<slug>/ledger.json`. Full schema and invariants in
-  [`references/ledger_schema.md`](../skills/literature-review/references/ledger_schema.md). Key rules:
+  [`references/ledger_schema.md`](../skills/callimachus/references/ledger_schema.md). Key rules:
   records are never deleted; `ledger.py` is the only writer of `criteria`/`screening`/`status`;
   **human decisions are locked** against LLM re-screens (the LLM's overridden call is retained in
   `proposed`); `stats` is derived and recomputed on every write. A review-level `exchanges[]` log
@@ -123,16 +119,16 @@ deliberately decoupled: the list ships fast; reading happens later and never blo
 
 ## Configuration & external services
 
-- **`.env` / `CALLIMACHUS_EMAIL`** — the polite-pool identity (higher rate limits on NCBI, OpenAlex,
+- **`.env` / `ARLANDRIA_EMAIL`** — the polite-pool identity (higher rate limits on NCBI, OpenAlex,
   Unpaywall). Loaded by `_common._load_dotenv()` from the package root or cwd; a real exported
-  environment variable overrides the file. `CALLIMACHUS_EMAIL` is *not* a Pi `settings.json` key —
+  environment variable overrides the file. `ARLANDRIA_EMAIL` is *not* a Pi `settings.json` key —
   Pi's settings have no env block (see [`.env.example`](../.env.example)).
 - **`OPENALEX_API_KEY`** (required) — OpenAlex (the default search backbone) requires an API key
   since 2026-02-13. `search.py --source openalex` reads it from the environment and fails friendly if
   unset; `--no-api-key` falls back to the keyless polite pool for the grace period.
 - **`S2_API_KEY`** (optional) — Semantic Scholar key for higher `search.py` rate limits.
-- **`CALLIMACHUS_HOME`** (optional) — fallback base directory for new review folders (default
-  `~/callimachus-reviews`). At creation the LLM asks where to save: the current dir, a path the
+- **`ARLANDRIA_HOME`** (optional) — fallback base directory for new review folders (default
+  `~/arlandria-reviews`). At creation the LLM asks where to save: the current dir, a path the
   researcher gives, or this default.
 - **Data sources** — OpenAlex (backbone) + freshness backends arXiv / bioRxiv / medRxiv (gated on
   `--since`) + domain/general backends Europe PMC, PubMed (NCBI E-utilities), Semantic Scholar, with
@@ -144,9 +140,9 @@ deliberately decoupled: the list ships fast; reading happens later and never blo
 ## State & what ships
 
 - Each review is one self-contained folder (`ledger.json` + `exports/` + `searches/` + `pdfs/`) at a
-  user-chosen base — the current dir, a given path, or `$CALLIMACHUS_HOME` / `~/callimachus-reviews`,
+  user-chosen base — the current dir, a given path, or `$ARLANDRIA_HOME` / `~/arlandria-reviews`,
   external to the repo by default. The legacy in-package `reviews/` and `outputs/` stay **gitignored** —
   a review is a living document you resume, not something committed.
 - The npm package ships only what's in the `files` list in [`package.json`](../package.json):
-  `bin/`, `skills/`, `prompts/`, `extensions/`, the two `.callimachus/` files, the logo, install
+  `bin/`, `skills/`, `prompts/`, `extensions/`, the two `.arlandria/` files, the logo, install
   scripts, and the docs/examples. Personal config (`.env`) is never shipped.

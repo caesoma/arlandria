@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Branded launcher. Prints the banner, then starts an interactive Pi session
-// with the Callimachus skill + command extension on the path, so `/litreview`
+// with the Arlandria skill + command extension on the path, so `/litreview`
 // and `/literature-review` are available immediately. No build step: the
 // extension is TypeScript loaded by Pi via jiti, and this launcher is plain JS.
 import { spawn, spawnSync } from "node:child_process";
@@ -12,9 +12,9 @@ import { existsSync, readFileSync } from "node:fs";
 const here = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(here, "..");
 
-const { CALLIMACHUS_ASCII_LOGO_TEXT } = await import(pathToFileURL(join(pkgRoot, "logo.mjs")).href);
-if (!process.env.CALLIMACHUS_QUIET) {
-  console.log("\n" + CALLIMACHUS_ASCII_LOGO_TEXT + "\n");
+const { ARLANDRIA_ASCII_LOGO_TEXT } = await import(pathToFileURL(join(pkgRoot, "logo.mjs")).href);
+if (!process.env.ARLANDRIA_QUIET) {
+  console.log("\n" + ARLANDRIA_ASCII_LOGO_TEXT + "\n");
 }
 
 // Prefer the Pi binary bundled as our dependency; fall back to a global `pi`.
@@ -37,15 +37,15 @@ function bundledPi() {
 // nothing for Python, so without uv the search/dedupe/resolve tools fail with ImportError mid-review.
 // Probe for it up front (fast) and fail with a clear install hint. Skippable for unusual setups.
 function ensureUv() {
-  if (process.env.CALLIMACHUS_SKIP_UV_CHECK) return;
+  if (process.env.ARLANDRIA_SKIP_UV_CHECK) return;
   const probe = spawnSync("uv", ["--version"], { stdio: "ignore" });
   if (probe.error || probe.status !== 0) {
     console.error(
-      "\nCallimachus needs `uv` to run its Python primitives (search, dedupe, resolve, ...),\n" +
+      "\nArlandria needs `uv` to run its Python primitives (search, dedupe, resolve, ...),\n" +
         "but it is not on your PATH. Install it with:\n\n" +
         "  curl -LsSf https://astral.sh/uv/install.sh | sh\n\n" +
         "Then re-run. Docs: https://docs.astral.sh/uv/\n" +
-        "(Set CALLIMACHUS_SKIP_UV_CHECK=1 to bypass this check.)\n",
+        "(Set ARLANDRIA_SKIP_UV_CHECK=1 to bypass this check.)\n",
     );
     process.exit(1);
   }
@@ -53,7 +53,7 @@ function ensureUv() {
 
 ensureUv();
 
-const skill = join(pkgRoot, "skills", "literature-review");
+const skill = join(pkgRoot, "skills", "callimachus");
 const extension = join(pkgRoot, "extensions", "litreview", "index.ts");
 const piArgs = ["-e", extension, "--skill", skill, ...process.argv.slice(2)];
 

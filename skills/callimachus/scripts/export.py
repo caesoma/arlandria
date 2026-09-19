@@ -4,15 +4,9 @@
 # dependencies = []  # stdlib only (argparse, csv, json, os, sys) - no _common, no third-party
 # ///
 """Export the effective-include set (spec ss2) as BibTeX or CSV. Re-runnable.
+Workflow step 8 (the deliverable) and re-run anytime after: the reading list of currently-included papers. It never writes the ledger, so it's safe to run repeatedly as decisions evolve. BibTeX (the .bib citation format that reference managers like Zotero / EndNote import) is the researcher's reading list; CSV carries the screening trail (decisions, relevance, covers, who decided) for auditing.
 
-Workflow step 8 (the deliverable) and re-run anytime after: the reading list of currently-included
-papers. It never writes the ledger, so it's safe to run repeatedly as decisions evolve. BibTeX (the
-.bib citation format that reference managers like Zotero / EndNote import) is the researcher's reading
-list; CSV carries the screening trail (decisions, relevance, covers, who decided) for auditing.
-
-By default the deliverable is written into the review's own `exports/` directory (beside the ledger)
-and the path is printed - so two reviews never overwrite each other's `references.*`. Pass --out-dir
-to choose another directory, or --stdout to stream to stdout for piping.
+By default the deliverable is written into the review's own `exports/` directory (beside the ledger) and the path is printed - so two reviews never overwrite each other's `references.*`. Pass --out-dir to choose another directory, or --stdout to stream to stdout for piping.
 
 effective-include = status==active AND
    (fulltext.decision == "include"
@@ -22,6 +16,7 @@ i.e. a full-text include, or an abstract include not yet overturned at full text
 
 Usage: export.py --ledger <review>/ledger.json --format bibtex|csv [--out-dir DIR | --stdout]
 """
+
 import argparse, csv, json, os, sys
 
 

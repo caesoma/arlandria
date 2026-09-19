@@ -1,9 +1,9 @@
 ---
-name: literature-review
+name: callimachus
 description: Semi-automated literature review. Turns a plain-English research question into multi-query searches over OpenAlex (the default backbone) plus freshness backends (arXiv, bioRxiv/medRxiv) and domain backends (Europe PMC, PubMed, and others) when the field or recency warrants; screens EVERY retrieved abstract for relevance against the question (closed-access works included); records every decision, reason, and assessment to a review ledger; and works interactively with the researcher, who is the final curator. The LLM's screening is a provisional first pass the researcher can override after reading the papers. Use for systematic or scoping literature search where recall and auditability matter.
 ---
 
-# Literature Review
+# Callimachus
 
 You (the LLM) orchestrate the review and do all the deciding and interaction yourself. The Python scripts are deterministic I/O tools you call via `bash`; they never make decisions. The review ledger (`<review-folder>/ledger.json`) is the single source of truth and persists across sessions. Your screening is a **provisional first pass** - the researcher reads the papers and has the final say.
 
@@ -11,9 +11,9 @@ You (the LLM) orchestrate the review and do all the deciding and interaction you
 
 ```bash
 cp .env.example .env   # then set:
-#   CALLIMACHUS_EMAIL  - polite-pool identity for NCBI / OpenAlex / Unpaywall / Crossref
+#   ARLANDRIA_EMAIL  - polite-pool identity for NCBI / OpenAlex / Unpaywall / Crossref
 #   OPENALEX_API_KEY   - REQUIRED for OpenAlex searches (the default backbone) since 2026-02-13
-#   CALLIMACHUS_HOME   - fallback base for new review folders (default ~/callimachus-reviews);
+#   ARLANDRIA_HOME   - fallback base for new review folders (default ~/arlandria-reviews);
 #                        you ask the researcher where to save at creation, so this is only the default
 ```
 
@@ -23,7 +23,7 @@ cached per-script environment on first call. **Always invoke a primitive with `u
 never call `python`/`python3` directly** - a bare `python` run has no dependencies installed and will
 fail with `ImportError`. (`uv` is the only host prerequisite besides Node/Pi.)
 
-The scripts load `.env` from the package root automatically. A real `export CALLIMACHUS_EMAIL=...`
+The scripts load `.env` from the package root automatically. A real `export ARLANDRIA_EMAIL=...`
 in the shell overrides it. OpenAlex now **requires** an API key: `search.py --source openalex` reads
 `OPENALEX_API_KEY` from the environment and fails with a clear message if it is unset (pass
 `--no-api-key` to use the keyless polite pool only while the grace period lasts). OpenAlex is
@@ -45,7 +45,7 @@ Each review is one self-contained folder you can keep anywhere (including outsid
 ```
 
 You choose `<base>` interactively when the review is created (step 2): the current folder, a path the
-researcher gives, or the default (`$CALLIMACHUS_HOME`, else `~/callimachus-reviews`). `<slug>` is a
+researcher gives, or the default (`$ARLANDRIA_HOME`, else `~/arlandria-reviews`). `<slug>` is a
 short keyword name for the topic. Paths stored in the ledger are relative to the folder, so the whole
 review can be moved or renamed freely (e.g. to sharpen the slug once the first search lands).
 
@@ -72,7 +72,7 @@ The ledger schema is in `references/ledger_schema.md`. Records are never deleted
 
 1. **Question.** The researcher states the topic in plain English.
 2. **Criteria - interactive gate.** Draft include/exclude criteria and present them. Then *exchange*: answer questions, show what each criterion would catch or miss, revise. Stay here across as many turns as needed. **Do not run any search until the researcher explicitly releases the gate** ("go ahead", "run it"). On an ambiguous reply, ask - do not assume. On release, set up the review's home, then record criteria:
-   - **Ask where to save it:** "Save this review in the current folder (`<pwd>`)? [Y/n]" - if no: "Enter a folder to save it in, or press Enter for the default (`$CALLIMACHUS_HOME`, else `~/callimachus-reviews`):". Create `<base>/<slug>/` plus `exports/ searches/ pdfs/`; `<slug>` is a short keyword name for the topic.
+   - **Ask where to save it:** "Save this review in the current folder (`<pwd>`)? [Y/n]" - if no: "Enter a folder to save it in, or press Enter for the default (`$ARLANDRIA_HOME`, else `~/arlandria-reviews`):". Create `<base>/<slug>/` plus `exports/ searches/ pdfs/`; `<slug>` is a short keyword name for the topic.
    - `ledger.py criteria --ledger <base>/<slug>/ledger.json --question "<the original question>"` - records the question on this first call (`ledger.json` derives its review_id from the folder name).
    - `ledger.py note --gate criteria --text "<2-3 sentences: what was debated and why the criteria landed here>"` - capture the rationale while it is fresh.
 3. **Query.** Write several query variants and run `search.py` for each (backend x query), saving each output into the review's `searches/` (`mkdir -p <folder>/searches`, then redirect `> <folder>/searches/r1.json`). **Hit OpenAlex by default** (the backbone; it returns closed works too - screen them). Add a **freshness** backend (`arxiv`/`biorxiv`/`medrxiv` with `--since`) only when the question is recency-sensitive (OpenAlex lags the source servers by days). Add **one** domain backend when the field clearly fits (e.g. `europepmc` for biomed) - not all of them. One backend per call; you fan out.

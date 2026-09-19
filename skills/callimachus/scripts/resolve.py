@@ -7,9 +7,7 @@
 # ///
 """Resolve a legal open-access copy for a ledger record.
 
-Workflow step 9 (full-text curation), on request only - run for one record at a time, not in bulk.
-Finds a legitimately free copy and records where it lives, so pdf_extract.py (or the researcher) can
-fetch it. Legal-OA only: it never attempts to bypass a paywall.
+Workflow step 9 (full-text curation), on request only - run for one record at a time, not in bulk. Finds a legitimately free copy and records where it lives, so pdf_extract.py (or the researcher) can fetch it. Legal-OA only: it never attempts to bypass a paywall.
 
 Order (each step fills only what's still missing):
   1. OpenAlex best-OA - a free location OpenAlex already captured on the record at search time.
@@ -18,8 +16,7 @@ Order (each step fills only what's still missing):
 If the work is closed and no OA copy turns up, the record is KEPT and marked
 `oa.fulltext = "closed, metadata-only"` rather than dropped.
 
-Writes oa.is_oa / oa.url / oa.fulltext (and backfills abstract/venue from Crossref) back to the
-ledger. Prints a single JSON object. Usage: resolve.py --ledger <review>/ledger.json --id <record_id>
+Writes oa.is_oa / oa.url / oa.fulltext (and backfills abstract/venue from Crossref) back to the ledger. Prints a single JSON object. Usage: resolve.py --ledger <review>/ledger.json --id <record_id>
 """
 import argparse, json, re
 from _common import load_ledger, save_ledger, get, EMAIL

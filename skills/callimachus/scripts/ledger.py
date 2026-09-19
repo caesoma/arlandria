@@ -7,12 +7,7 @@
 # ///
 """ledger.py - the only writer of criteria / screening / status. Schema-safe.
 
-Every screening decision and criteria change goes through here so the ledger stays valid and the
-human-decision lock is enforced in one place; nothing else hand-edits <review>/ledger.json. Each verb
-loads the ledger, mutates it in memory, recomputes derived stats, saves, and prints a small JSON
-result. Used across the whole workflow: criteria at the gates (steps 2/7), decide while screening
-(5) and curating (9), status to shelve/un-shelve clusters (6), note to log the rationale exchanged
-with the researcher at a gate (steps 2/6).
+Every screening decision and criteria change goes through here so the ledger stays valid and the human-decision lock is enforced in one place; nothing else hand-edits <review>/ledger.json. Each verb loads the ledger, mutates it in memory, recomputes derived stats, saves, and prints a small JSON result. Used across the whole workflow: criteria at the gates (steps 2/7), decide while screening (5) and curating (9), status to shelve/un-shelve clusters (6), note to log the rationale exchanged with the researcher at a gate (steps 2/6).
 
 Verbs:
   criteria --ledger L --include "..." [...] --exclude "..." [...] [--question "..."]
@@ -21,11 +16,9 @@ Verbs:
   status   --ledger L --status active|deferred --id ID [ID ...]
   note     --ledger L --gate criteria|triage --text "..."   (append a gate-exchange summary)
 
-Locking (the researcher is the final curator): a `--by llm` write never overwrites a
-`decided_by:human` decision. A `--by human` write always applies, stashing the LLM's prior call into
-the `proposed` shadow field - so the LLM's original recommendation stays visible for audit after an
-override.
+Locking (the researcher is the final curator): a `--by llm` write never overwrites a `decided_by:human` decision. A `--by human` write always applies, stashing the LLM's prior call into the `proposed` shadow field - so the LLM's original recommendation stays visible for audit after an override.
 """
+
 import argparse, json, sys
 from _common import load_ledger, save_ledger, recompute_stats, now
 

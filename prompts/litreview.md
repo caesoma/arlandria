@@ -10,7 +10,7 @@ Tool names are literal; use only tools visible in the current tool set. Run the 
 
 ## Task
 
-Load the `literature-review` skill and follow its 9-step workflow for: $@
+Load the `callimachus` skill and follow its 9-step workflow for: $@
 
 Key disciplines:
 - **Interactive gates (steps 2, 6):** propose, then exchange and revise across as many turns as the researcher wants; proceed only on an explicit release.
