@@ -16,7 +16,8 @@ Usage: pdf_extract.py --pdf path/to/paper.pdf [--out paper.txt]
 NOTE: starting point. For scanned PDFs add OCR; consider the pi-docparser
 package for layout-aware extraction across formats.
 """
-import argparse, sys
+import argparse, hashlib, json, sys
+from pathlib import Path
 from pypdf import PdfReader  # third-party PDF reader (declared in the PEP 723 block above)
 
 
@@ -24,9 +25,24 @@ def main():
     ap = argparse.ArgumentParser()  # --pdf (input), --out (optional sidecar path)
     ap.add_argument("--pdf", required=True)
     ap.add_argument("--out")
+    ap.add_argument("--structured", action="store_true",
+                    help="emit page-located JSON with PDF hash and extraction warnings")
     a = ap.parse_args()
     # pull each page's embedded text (None -> "") and join with blank lines between pages
-    text = "\n\n".join((p.extract_text() or "") for p in PdfReader(a.pdf).pages)
+    pages = [{"page": i + 1, "text": p.extract_text() or ""}
+             for i, p in enumerate(PdfReader(a.pdf).pages)]
+    text = "\n\n".join(p["text"] for p in pages)
+    if a.structured:
+        warnings = ["Embedded text only; reading order and tables require manual verification."]
+        if any(not p["text"].strip() for p in pages):
+            warnings.append("One or more pages have no embedded text; OCR may be required.")
+        text = json.dumps({
+            "schema_version": 1,
+            "pdf_sha256": hashlib.sha256(Path(a.pdf).read_bytes()).hexdigest(),
+            "extractor": "pypdf/embedded-text",
+            "pages": pages,
+            "warnings": warnings,
+        }, indent=2, ensure_ascii=False) + "\n"
     if a.out:
         open(a.out, "w").write(text)  # persist to the sidecar file and report its path
         print(a.out)

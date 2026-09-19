@@ -122,7 +122,53 @@ Two steps are **interactive gates** — the LLM proposes, then exchanges and rev
 8. **Export** — BibTeX + CSV of the included set, as soon as abstract screening converges (in hand within the hour). Re-runnable.
 9. **Full-text curation** — asynchronously over later sessions, fetch and read papers and record final verdicts with `--by human`. Never blocks.
 
-### Layout
+### Hypathia: synthesis after Callimachus
+
+The bundled launcher and Pi package expose:
+
+```text
+/hypathia /path/to/completed-review
+/hypathia question What does the literature establish about ...?
+```
+
+Hypathia produces a cited Markdown report, presentation brief, SVG evidence and
+opportunity matrices, gap-to-direction diagram, and review-flow visual. Findings
+and research directions trace to exact passages. Feasibility uses the researcher's
+stated resources; an empty low-effort shortlist is a valid result.
+
+**Callimachus must finish all nine stages first.** Its early reading list is
+insufficient. Missing or incomplete research is delegated to Callimachus, which
+retains its interactive criteria, triage, and final curation decisions.
+Use `/callimachus-approve criteria|triage|curation <review folder>` at those gates.
+The final gate validates a source registry and publishes a sealed completion
+snapshot before Hypathia runs.
+
+Hypathia runs in a separate Pi SDK session with only snapshot-reading,
+evidence-writing, rendering, and upstream-request tools. It inherits no shell,
+search tool, filesystem reader, extensions, skills, or project instructions.
+Any requested refresh returns to Callimachus and waits for a new completed result.
+The configured Pi model/authentication is reused for synthesis.
+
+See the [skill](skills/hypathia/SKILL.md) and
+[completion and evidence contracts](skills/hypathia/references/contracts.md)
+for setup, schemas, access limitations, resume behavior, and output locations.
+
+### Development checks
+
+Use Node 24 (`nvm use`, as specified by `.nvmrc`) and `uv`:
+
+```bash
+npm install
+npm run check
+uv run --with ruff==0.14.8 ruff check --select E9,F63,F7,F82 skills/literature-review/scripts/pdf_extract.py
+```
+
+The native Node tests exercise deterministic primitives and the actual Pi SDK
+tool boundary without making a model request. A live literature run additionally
+requires the researcher's Pi model authentication, search credentials, papers,
+and human gate decisions.
+
+### Package layout
 
 ```
 callimachus/

@@ -83,6 +83,32 @@ The ledger schema is in `references/ledger_schema.md`. Records are never deleted
 8. **Export - the deliverable, fast.** As soon as abstract screening converges, run `export.py` (bibtex + csv); it writes `references.bib`/`.csv` into the review's `exports/` and prints each path. This is the reading list, in hand within the hour. The session can end here. Export is re-runnable.
 9. **Full-text curation - asynchronous.** Over later sessions, the researcher reads the papers. On request, fetch a copy: `resolve.py` finds a legal OA url, download it into the review's `pdfs/`, then `pdf_extract.py --pdf <folder>/pdfs/<id>.pdf` to read it. **Never block on their reading.** As they read, record verdicts with `ledger.py decide --stage fulltext --by human`; `borderline` resolves to include/exclude here. Re-export anytime.
 
+## Completion for Hypathia
+
+When Hypathia requests a review, run this entire workflow. The early step-8
+reading list does not release Hypathia; it waits for stage 9 and human decisions.
+Resume an existing matching review in its supplied folder instead of duplicating
+it. You alone own queries, search, acquisition, extraction repair, and screening.
+
+After discussing the criteria and triage gates, ask the researcher to invoke
+`/callimachus-approve criteria <review folder>` and
+`/callimachus-approve triage <review folder>` respectively. These host commands
+record approval against the current state. Repeat affected approvals after scope
+or pool changes. Never run a finalizer or write approval records on their behalf.
+
+For every final included source, produce structured page-located extraction with
+`pdf_extract.py --pdf <path> --structured --out <path.json>`. Prepare the review's
+`sources.json` using [the completion contract](../hypathia/references/contracts.md).
+Resolve all active abstract includes/borderlines to human full-text dispositions.
+If full text is unavailable, retain the source with an explicit access limitation
+only after the researcher approves that terminal disposition. Do not invent a
+human decision or silently skip a stage.
+
+Finally ask the researcher to run
+`/callimachus-approve curation <review folder>`. This checks all prerequisites,
+creates final exports and a sealed completion snapshot, and resumes pending
+Hypathia work. Until it succeeds, tell Hypathia the review remains incomplete.
+
 ## Curation (any turn, any session)
 
 - **Interrogate** (reads over the ledger): clusters, why a paper was decided a certain way, borderlines, what a paper covers. No new search.

@@ -55,7 +55,9 @@ ensureUv();
 
 const skill = join(pkgRoot, "skills", "literature-review");
 const extension = join(pkgRoot, "extensions", "litreview", "index.ts");
-const piArgs = ["-e", extension, "--skill", skill, ...process.argv.slice(2)];
+const hypathiaExtension = join(pkgRoot, "extensions", "hypathia", "index.ts");
+const hypathiaSkill = join(pkgRoot, "skills", "hypathia");
+const piArgs = ["-e", extension, "-e", hypathiaExtension, "--skill", skill, "--skill", hypathiaSkill, ...process.argv.slice(2)];
 
 const bundled = bundledPi();
 const cmd = bundled ? process.execPath : "pi";
