@@ -14,34 +14,34 @@ const RequestSchema = Type.Object({
 });
 
 export function pauseRequest(root: string, question: string) {
-  const path = inside(root, ".hypathia/request.json");
+  const path = inside(root, ".hypatia/request.json");
   if (existsSync(path) && parse(RequestSchema, readJson(path)).status === "awaiting_callimachus") return;
   atomicWrite(path, json({ status: "paused", question }));
 }
 
-export default function hypathia(pi: ExtensionAPI): void {
+export default function hypatia(pi: ExtensionAPI): void {
   const active = new Set<string>();
   const notifyError = (ctx: ExtensionContext, error: unknown) =>
     ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
 
   function delegate(root: string, reason: string) {
     pi.sendUserMessage([
-      'Load the "literature-review" skill and run Callimachus through ALL nine stages.',
+      'Load the "callimachus" skill and run Callimachus through ALL nine stages.',
       `Review folder: ${JSON.stringify(root)}. Resume this ledger if it exists; do not duplicate the review.`,
       `Research request / missing evidence: ${JSON.stringify(reason)}.`,
-      "Hypathia is waiting. Do not synthesize on its behalf. Do not design queries until the Callimachus criteria gate is released.",
+      "Hypatia is waiting. Do not synthesize on its behalf. Do not design queries until the Callimachus criteria gate is released.",
       "Preserve criteria, triage, and final curation human gates. Ask the researcher to use /callimachus-approve at each gate.",
       "The step-8 export is not completion. Finish source acquisition and human curation, prepare sources.json, and ask for /callimachus-approve curation <review folder>.",
-      "That command validates/finalizes the review and resumes Hypathia. Never fabricate human approvals.",
+      "That command validates/finalizes the review and resumes Hypatia. Never fabricate human approvals.",
     ].join("\n"), { deliverAs: "followUp" });
   }
 
   async function start(root: string, ctx: ExtensionContext, question = "") {
     root = resolve(root);
     mkdirSync(root, { recursive: true });
-    mkdirSync(inside(root, ".hypathia"), { recursive: true });
-    if (active.has(root)) throw new Error("This review already has a running Hypathia session");
-    const requestPath = inside(root, ".hypathia/request.json");
+    mkdirSync(inside(root, ".hypatia"), { recursive: true });
+    if (active.has(root)) throw new Error("This review already has a running Hypatia session");
+    const requestPath = inside(root, ".hypatia/request.json");
     let snapshot: Snapshot;
     try {
       snapshot = loadSnapshot(root);
@@ -60,15 +60,15 @@ export default function hypathia(pi: ExtensionAPI): void {
           return;
         }
       }
-      atomicWrite(requestPath, json({ status: "awaiting_callimachus", question, reason: question || "Finish the existing review for Hypathia." }));
+      atomicWrite(requestPath, json({ status: "awaiting_callimachus", question, reason: question || "Finish the existing review for Hypatia." }));
       delegate(root, question || "Complete or repair this review's completion handoff.");
       return;
     }
     const directory = evidenceDirectory(snapshot);
     const contextPath = inside(directory, "context.json");
     if (!existsSync(contextPath)) {
-      if (!ctx.hasUI) throw new Error("Run /hypathia interactively to supply audience and optional research constraints");
-      const audience = await ctx.ui.input("Hypathia audience", "Peers and stakeholders");
+      if (!ctx.hasUI) throw new Error("Run /hypatia interactively to supply audience and optional research constraints");
+      const audience = await ctx.ui.input("Hypatia audience", "Peers and stakeholders");
       if (audience === undefined) return;
       const resources = await ctx.ui.input("Available resources / constraints (optional; separate with semicolons)", "Leave blank if unknown");
       if (resources === undefined) return;
@@ -83,23 +83,23 @@ export default function hypathia(pi: ExtensionAPI): void {
       atomicWrite(requestPath, json({ status: "synthesizing", question: snapshot.ledger.question, revision: snapshot.handoff.revision }));
       const refresh = await synthesize(snapshot, ctx);
       if (refresh) delegate(root, refresh);
-      else ctx.ui.notify(`Hypathia delivered. Output details: ${inside(directory, "delivery.json")}`, "info");
+      else ctx.ui.notify(`Hypatia delivered. Output details: ${inside(directory, "delivery.json")}`, "info");
     } catch (error) {
       pauseRequest(root, snapshot.ledger.question);
       throw error;
     } finally { active.delete(root); }
   }
 
-  pi.registerCommand("hypathia", {
-    description: "Synthesize a completed review: /hypathia <folder> or /hypathia question <research question>",
+  pi.registerCommand("hypatia", {
+    description: "Synthesize a completed review: /hypatia <folder> or /hypatia question <research question>",
     handler: async (args, ctx) => {
       try {
         const input = args.trim();
-        if (!input) throw new Error("Use /hypathia <review folder> or /hypathia question <research question>");
+        if (!input) throw new Error("Use /hypatia <review folder> or /hypatia question <research question>");
         if (input.startsWith("question ")) {
           const question = input.slice(9).trim();
           if (!question) throw new Error("A research question is required");
-          const root = resolve(ctx.cwd, "reviews", `hypathia-${hash(question.toLowerCase().replace(/\s+/g, " ")).slice(0, 16)}`);
+          const root = resolve(ctx.cwd, "reviews", `hypatia-${hash(question.toLowerCase().replace(/\s+/g, " ")).slice(0, 16)}`);
           await start(root, ctx, question);
         } else await start(resolve(ctx.cwd, input), ctx);
       } catch (error) { notifyError(ctx, error); }
@@ -117,14 +117,14 @@ export default function hypathia(pi: ExtensionAPI): void {
         const root = resolve(ctx.cwd, match[2]);
         const fingerprint = gateFingerprint(root, gate);
         const description = gate === "curation"
-          ? "Confirm you reviewed the final human dispositions, source/access limitations and cutoff in sources.json. This completes Callimachus and may resume Hypathia."
+          ? "Confirm you reviewed the final human dispositions, source/access limitations and cutoff in sources.json. This completes Callimachus and may resume Hypatia."
           : `Release the ${gate} gate for the current review? Only approve after discussing the current criteria / screened pool.`;
         if (!await ctx.ui.confirm(`Callimachus ${gate}: ${root}`, description)) return;
         approveGate(root, gate, fingerprint);
         if (gate === "curation") {
           const revision = finalize(root);
           ctx.ui.notify(`Callimachus completed: ${revision}`, "info");
-          if (existsSync(inside(root, ".hypathia/request.json"))) await start(root, ctx);
+          if (existsSync(inside(root, ".hypatia/request.json"))) await start(root, ctx);
         } else {
           pi.sendUserMessage(`The researcher released Callimachus's ${gate} gate for ${JSON.stringify(root)}. Continue its literature-review workflow.`, { deliverAs: "followUp" });
         }
@@ -133,12 +133,12 @@ export default function hypathia(pi: ExtensionAPI): void {
   });
 
   pi.registerTool({
-    name: "hypathia", label: "Run Hypathia",
-    description: "Delegate synthesis to an isolated Hypathia session. Accepts an existing review folder only. If incomplete, requests full Callimachus completion first.",
+    name: "hypatia", label: "Run Hypatia",
+    description: "Delegate synthesis to an isolated Hypatia session. Accepts an existing review folder only. If incomplete, requests full Callimachus completion first.",
     parameters: Type.Object({ review_folder: Type.String({ minLength: 1 }) }),
     execute: async (_id, params, _signal, _onUpdate, ctx) => {
       await start(resolve(ctx.cwd, params.review_folder), ctx);
-      return { content: [{ type: "text", text: "Hypathia request processed. Follow the completion/approval messages; do not synthesize in this parent session." }], details: {} };
+      return { content: [{ type: "text", text: "Hypatia request processed. Follow the completion/approval messages; do not synthesize in this parent session." }], details: {} };
     },
   });
 }

@@ -1,21 +1,21 @@
 ---
-name: hypathia
+name: hypatia
 description: Synthesize only completed Callimachus results into cited findings, author-stated gaps, author-proposed directions, resource-grounded opportunities, Markdown and SVG visuals. Delegates missing or updated research to the full Callimachus workflow; never searches.
 ---
 
-# Hypathia
+# Hypatia
 
 ## Execution boundary
 
 If you are in the ordinary Pi/Callimachus session, **do not perform this workflow
-there**. Invoke the `hypathia` tool with the existing review folder, or ask the user
-to run `/hypathia <review folder>`. For a question with no review, use
-`/hypathia question <research question>`. The extension delegates incomplete
+there**. Invoke the `hypatia` tool with the existing review folder, or ask the user
+to run `/hypatia <review folder>`. For a question with no review, use
+`/hypatia question <research question>`. The extension delegates incomplete
 research to Callimachus and creates an isolated synthesis session only after
 completion. If the extension is unavailable, stop and explain how to load it.
 
-Inside the isolated session, the only tools are `hypathia_snapshot`,
-`hypathia_source`, `hypathia_save`, `hypathia_render`, and `request_callimachus`.
+Inside the isolated session, the only tools are `hypatia_snapshot`,
+`hypatia_source`, `hypatia_save`, `hypatia_render`, and `request_callimachus`.
 There is no shell, general file reader, browser, network-search tool, source
 downloader, or upstream writer. Never perform research through another route.
 
@@ -45,10 +45,10 @@ Only its authenticated, completed snapshot is input to this workflow.
 
 ## Procedure
 
-1. **Read `hypathia_snapshot`.** Inherit the approved question, criteria, cutoff,
+1. **Read `hypatia_snapshot`.** Inherit the approved question, criteria, cutoff,
    sources, access limitations, audience, and resource IDs. Resume saved evidence
    for the same revision. Do not mix revisions.
-2. **Read every included source using `hypathia_source`.** Supply `source_id`,
+2. **Read every included source using `hypatia_source`.** Supply `source_id`,
    `page` (1-based PDF page, or 1 for an abstract), and `offset` (start at 0).
    Follow `next_offset` until null before advancing pages. The result states the
    total pages. Preserve publications where no gap or proposal was identified.
@@ -77,14 +77,14 @@ Only its authenticated, completed snapshot is input to this workflow.
    Low effort requires a current open/partly-addressed gap, known prerequisites,
    applicable researcher resources, and no material unknowns. Explain your
    assessment; it is not an author claim.
-8. **Save using `hypathia_save`.** Submit the complete document:
+8. **Save using `hypatia_save`.** Submit the complete document:
    `schema_version: 1`, `handoff_revision` from the snapshot, arrays of `claims`,
    `findings`, `gaps`, `opportunities`, and `source_reviews`.
    Each source review has `source_id`, `status` (`reviewed` or `unreadable`),
    and a `note` explaining coverage or limitations. Save progress periodically.
    Previous evidence versions remain in history, including corrected/retired
    claims. Fix validation errors before delivery.
-9. **Render with `hypathia_render`.** All sources must have a disposition.
+9. **Render with `hypatia_render`.** All sources must have a disposition.
    Markdown, the brief, matrices, diagrams, and the audit are generated from
    the same evidence and context. Never write an uncited replacement report or
    use image generation to invent scientific diagrams.

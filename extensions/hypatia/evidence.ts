@@ -78,9 +78,9 @@ export function validateDelivery(snapshot: Snapshot, evidence: Evidence) {
 }
 
 export function evidenceDirectory(snapshot: Snapshot): string {
-  const root = inside(snapshot.root, ".hypathia");
+  const root = inside(snapshot.root, ".hypatia");
   mkdirSync(root, { recursive: true });
-  const directory = inside(snapshot.root, `.hypathia/${snapshot.handoff.revision}`);
+  const directory = inside(snapshot.root, `.hypatia/${snapshot.handoff.revision}`);
   mkdirSync(directory, { recursive: true });
   return directory;
 }

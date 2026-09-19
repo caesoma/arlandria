@@ -2,7 +2,7 @@
 
 ## Callimachus completion
 
-Callimachus continues to support early reading-list exports. Hypathia additionally
+Callimachus continues to support early reading-list exports. Hypatia additionally
 requires human approval of three gates through the extension:
 
 ```
@@ -23,7 +23,7 @@ Before approving curation, Callimachus must:
    locked). Resolve active included/borderline records with a human full-text
    include/exclude disposition and reason.
 2. For each final included publication, prepare page-located text with:
-   `uv run skills/literature-review/scripts/pdf_extract.py --pdf paper.pdf --structured --out paper.json`.
+   `uv run skills/callimachus/scripts/pdf_extract.py --pdf paper.pdf --structured --out paper.json`.
 3. Write `sources.json` in the review folder. Paths are relative to that folder;
    absolute paths, traversal, and symlinks are rejected:
 
@@ -57,7 +57,7 @@ source artifacts and the ledger into `.callimachus/completed/<revision>/`, and
 publishes `.callimachus/current.json` only after success. The sealed `handoff.json`
 includes stage outcomes, gate fingerprints, cutoff, final IDs, and artifact hashes.
 
-The seal uses a host-owned key at `~/.arlandria/completion.key`. Hypathia cannot
+The seal uses a host-owned key at `~/.arlandria/completion.key`. Hypatia cannot
 read the key or invoke the finalizer. Hashes establish integrity; the seal
 establishes the local Callimachus producer. This is a local agent capability
 boundary, not protection against a user or process that already controls the
@@ -66,7 +66,7 @@ finalization there. Keep the original completion directory for historical audit.
 
 ## Evidence
 
-The executable schemas are in `extensions/hypathia/schema.ts`. Example:
+The executable schemas are in `extensions/hypatia/schema.ts`. Example:
 
 ```json
 {
@@ -106,7 +106,7 @@ not a fabricated cost model. Unknowns are never scored as zero effort.
 
 ## Storage and delivery
 
-Hypathia writes only `.hypathia/` under the selected review:
+Hypatia writes only `.hypatia/` under the selected review:
 
 ```
 request.json
@@ -135,7 +135,7 @@ the ledger, source registry, extraction, PDF, or completion revision blocks tool
 calls until Callimachus completes again. No previously generated report is
 silently reused against a new revision.
 
-`/hypathia question <question>` uses a stable review folder keyed by normalized
+`/hypatia question <question>` uses a stable review folder keyed by normalized
 question under the working directory's `reviews/`. Reuse that folder rather than
 starting another review. If a matching review already lives elsewhere, supply its
 folder explicitly. Resume Callimachus in the same folder after a session restart.

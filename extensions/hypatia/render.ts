@@ -22,19 +22,19 @@ function opportunityText(evidence: Evidence, opportunity: Evidence["opportunitie
 export function report(snapshot: Snapshot, evidence: Evidence, context: ResearchContext): string {
   const { handoff, ledger } = snapshot;
   const lines = [
-    `# Hypathia — ${md(ledger.question)}`, "",
+    `# Hypatia — ${md(ledger.question)}`, "",
     `Audience: ${md(context.audience)}. Search cutoff: **${handoff.cutoff}**.`,
     `Callimachus revision: \`${handoff.revision}\`. Final included publications: **${handoff.included_ids.length}**.`,
     "Publication counts are not independent-study counts or evidence-quality scores.", "",
     "## Executive summary", "",
     ...evidence.findings.slice(0, 5).map(f => `- ${md(f.statement)} (${cites(f.claim_ids)})`),
     evidence.findings.length ? "" : "No supported findings were established.",
-    `${shortlist(evidence).length} direction(s) meet the stated low-effort criteria. Feasibility is Hypathia's assessment, not an author claim.`,
+    `${shortlist(evidence).length} direction(s) meet the stated low-effort criteria. Feasibility is Hypatia's assessment, not an author claim.`,
     "", "## Scope and methods", "",
     `Include: ${ledger.criteria.include.map(md).join("; ") || "None specified"}.`,
     `Exclude: ${ledger.criteria.exclude.map(md).join("; ") || "None specified"}.`,
     `Callimachus recorded ${ledger.queries.length} query audit entries and ${ledger.records.length} deduplicated records. All abstract screening and required human curation dispositions are complete.`,
-    "The complete search audit and screening decisions are in the pinned Callimachus ledger. No additional search was performed by Hypathia.",
+    "The complete search audit and screening decisions are in the pinned Callimachus ledger. No additional search was performed by Hypatia.",
     "", "## Main findings and disagreements", "",
   ];
   for (const finding of evidence.findings) lines.push(
@@ -59,7 +59,7 @@ export function report(snapshot: Snapshot, evidence: Evidence, context: Research
   for (const opportunity of evidence.opportunities) lines.push(
     `### ${opportunity.id}: ${md(opportunityText(evidence, opportunity))}`, "",
     `Author-proposal evidence: ${cites(opportunity.direction_claim_ids)}. Gap: ${opportunity.gap_id}.`,
-    `Hypathia effort assessment: **${opportunity.feasibility.effort}** — ${md(opportunity.feasibility.rationale)}.`,
+    `Hypatia effort assessment: **${opportunity.feasibility.effort}** — ${md(opportunity.feasibility.rationale)}.`,
     `Prerequisites: ${opportunity.feasibility.prerequisites.map(md).join("; ") || "unknown"}.`,
     `Unknowns: ${opportunity.feasibility.unknowns.map(md).join("; ") || "none recorded"}.`,
     `Researcher resource references: ${opportunity.feasibility.resource_ids.join(", ") || "none; feasibility remains unestablished"}.`, "",
@@ -151,7 +151,7 @@ export function render(snapshot: Snapshot): string {
     "", "## Findings", ...evidence.findings.map(f => `- ${md(f.statement)} (${f.claim_ids.join(", ")}; see report audit). Strength: ${md(f.strength)}. Counterevidence: ${f.disagreements.join(", ") || "none recorded"}.`),
     "", "## Gaps", ...evidence.gaps.map(g => `- ${md(g.statement)} — ${g.status} (${g.claim_ids.join(", ")}).`),
     "", "## Feasible author-proposed directions",
-    ...shortlist(evidence).map(o => `- ${md(opportunityText(evidence, o))} (${o.direction_claim_ids.join(", ")}). Hypathia feasibility assessment: ${md(o.feasibility.rationale)}.`),
+    ...shortlist(evidence).map(o => `- ${md(opportunityText(evidence, o))} (${o.direction_claim_ids.join(", ")}). Hypatia feasibility assessment: ${md(o.feasibility.rationale)}.`),
     shortlist(evidence).length ? "" : "No adequately supported low-effort shortlist.",
     "", "## Limitations", "This summary inherits the report's corpus cutoff, access limitations, uncertainty, and researcher constraints.",
     ...snapshot.handoff.sources.filter(s => s.limitation).map(s => `- ${md(s.record_id)}: ${md(s.limitation)}`),
@@ -169,7 +169,7 @@ export function render(snapshot: Snapshot): string {
     `${s.record_id} [${s.kind}]`, cells(s.record_id, ["finding"]), cells(s.record_id, ["gap", "limitation"]),
     cells(s.record_id, ["direction"]), cells(s.record_id, ["context"]),
   ])));
-  save("opportunity-matrix.svg", tableSvg("Opportunity matrix — feasibility is Hypathia's assessment", caption, [
+  save("opportunity-matrix.svg", tableSvg("Opportunity matrix — feasibility is Hypatia's assessment", caption, [
     { label: "Opportunity", width: 125 }, { label: "Gap / status", width: 290 },
     { label: "Effort", width: 110 }, { label: "Unknowns", width: 325 },
     { label: "Author-proposal evidence", width: 250 },

@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 // Branded launcher. Prints the banner, then starts an interactive Pi session
-// with the Callimachus skill + command extension on the path, so `/litreview`
-// and `/literature-review` are available immediately. No build step: the
-// extension is TypeScript loaded by Pi via jiti, and this launcher is plain JS.
+// with the Callimachus and Hypatia skills and command extensions.
+// No build step: Pi loads TypeScript extensions via jiti.
 import { spawn, spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -56,11 +55,11 @@ function ensureUv() {
 
 ensureUv();
 
-const skill = join(pkgRoot, "skills", "literature-review");
-const extension = join(pkgRoot, "extensions", "litreview", "index.ts");
-const hypathiaExtension = join(pkgRoot, "extensions", "hypathia", "index.ts");
-const hypathiaSkill = join(pkgRoot, "skills", "hypathia");
-const piArgs = ["-e", extension, "-e", hypathiaExtension, "--skill", skill, "--skill", hypathiaSkill, ...process.argv.slice(2)];
+const callimachusSkill = join(pkgRoot, "skills", "callimachus");
+const callimachusExtension = join(pkgRoot, "extensions", "callimachus", "index.ts");
+const hypatiaExtension = join(pkgRoot, "extensions", "hypatia", "index.ts");
+const hypatiaSkill = join(pkgRoot, "skills", "hypatia");
+const piArgs = ["-e", callimachusExtension, "-e", hypatiaExtension, "--skill", callimachusSkill, "--skill", hypatiaSkill, ...process.argv.slice(2)];
 
 const bundled = bundledPi();
 const cmd = bundled ? process.execPath : "pi";

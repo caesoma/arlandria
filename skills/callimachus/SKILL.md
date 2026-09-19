@@ -1,9 +1,9 @@
 ---
-name: literature-review
+name: callimachus
 description: Semi-automated literature review. Turns a plain-English research question into multi-query searches over OpenAlex (the default backbone) plus freshness backends (arXiv, bioRxiv/medRxiv) and domain backends (Europe PMC, PubMed, and others) when the field or recency warrants; screens EVERY retrieved abstract for relevance against the question (closed-access works included); records every decision, reason, and assessment to a review ledger; and works interactively with the researcher, who is the final curator. The LLM's screening is a provisional first pass the researcher can override after reading the papers. Use for systematic or scoping literature search where recall and auditability matter.
 ---
 
-# Literature Review
+# Callimachus
 
 You (the LLM) orchestrate the review and do all the deciding and interaction yourself. The Python scripts are deterministic I/O tools you call via `bash`; they never make decisions. The review ledger (`<review-folder>/ledger.json`) is the single source of truth and persists across sessions. Your screening is a **provisional first pass** - the researcher reads the papers and has the final say.
 
@@ -83,10 +83,10 @@ The ledger schema is in `references/ledger_schema.md`. Records are never deleted
 8. **Export - the deliverable, fast.** As soon as abstract screening converges, run `export.py` (bibtex + csv); it writes `references.bib`/`.csv` into the review's `exports/` and prints each path. This is the reading list, in hand within the hour. The session can end here. Export is re-runnable.
 9. **Full-text curation - asynchronous.** Over later sessions, the researcher reads the papers. On request, fetch a copy: `resolve.py` finds a legal OA url, download it into the review's `pdfs/`, then `pdf_extract.py --pdf <folder>/pdfs/<id>.pdf` to read it. **Never block on their reading.** As they read, record verdicts with `ledger.py decide --stage fulltext --by human`; `borderline` resolves to include/exclude here. Re-export anytime.
 
-## Completion for Hypathia
+## Completion for Hypatia
 
-When Hypathia requests a review, run this entire workflow. The early step-8
-reading list does not release Hypathia; it waits for stage 9 and human decisions.
+When Hypatia requests a review, run this entire workflow. The early step-8
+reading list does not release Hypatia; it waits for stage 9 and human decisions.
 Resume an existing matching review in its supplied folder instead of duplicating
 it. You alone own queries, search, acquisition, extraction repair, and screening.
 
@@ -98,7 +98,7 @@ or pool changes. Never run a finalizer or write approval records on their behalf
 
 For every final included source, produce structured page-located extraction with
 `pdf_extract.py --pdf <path> --structured --out <path.json>`. Prepare the review's
-`sources.json` using [the completion contract](../hypathia/references/contracts.md).
+`sources.json` using [the completion contract](../hypatia/references/contracts.md).
 Resolve all active abstract includes/borderlines to human full-text dispositions.
 If full text is unavailable, retain the source with an explicit access limitation
 only after the researcher approves that terminal disposition. Do not invent a
@@ -107,7 +107,7 @@ human decision or silently skip a stage.
 Finally ask the researcher to run
 `/callimachus-approve curation <review folder>`. This checks all prerequisites,
 creates final exports and a sealed completion snapshot, and resumes pending
-Hypathia work. Until it succeeds, tell Hypathia the review remains incomplete.
+Hypatia work. Until it succeeds, tell Hypatia the review remains incomplete.
 
 ## Curation (any turn, any session)
 

@@ -5,24 +5,57 @@ import { join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { createJiti } from "jiti";
-import { AgentSession, AuthStorage, ModelRegistry, createAgentSession } from "@earendil-works/pi-coding-agent";
+import {
+  AgentSession, AuthStorage, DefaultResourceLoader, ModelRegistry,
+  SettingsManager, createAgentSession, loadSkillsFromDir,
+} from "@earendil-works/pi-coding-agent";
 
-const sandbox = mkdtempSync(join(homedir(), ".hypathia-tests-"));
+const sandbox = mkdtempSync(join(homedir(), ".hypatia-tests-"));
 // Keep signing keys and SDK discovery isolated from the developer's real home.
 const originalHome = process.env.HOME;
 process.env.HOME = sandbox;
 after(() => { process.env.HOME = originalHome; rmSync(sandbox, { recursive: true }); });
 const jiti = createJiti(import.meta.url);
-const { approveGate, gateFingerprint, finalize, loadSnapshot } = await jiti.import("../extensions/hypathia/handoff.ts");
-const { validateEvidence, saveEvidence, evidenceDirectory, loadEvidence } = await jiti.import("../extensions/hypathia/evidence.ts");
-const { render, shortlist } = await jiti.import("../extensions/hypathia/render.ts");
-const { restrictedTools, isolatedOptions, toolNames } = await jiti.import("../extensions/hypathia/runtime.ts");
-const { hash, json, inside } = await jiti.import("../extensions/hypathia/storage.ts");
-const { default: extension, pauseRequest } = await jiti.import("../extensions/hypathia/index.ts");
+const { approveGate, gateFingerprint, finalize, loadSnapshot } = await jiti.import("../extensions/hypatia/handoff.ts");
+const { validateEvidence, saveEvidence, evidenceDirectory, loadEvidence } = await jiti.import("../extensions/hypatia/evidence.ts");
+const { render, shortlist } = await jiti.import("../extensions/hypatia/render.ts");
+const { restrictedTools, isolatedOptions, toolNames } = await jiti.import("../extensions/hypatia/runtime.ts");
+const { hash, json, inside } = await jiti.import("../extensions/hypatia/storage.ts");
+const { default: extension, pauseRequest } = await jiti.import("../extensions/hypatia/index.ts");
+const { default: callimachus } = await jiti.import("../extensions/callimachus/index.ts");
 
 const text = "We found an association, not causation. Rural settings remain untested. Future work should evaluate rural clinics.";
 const writeJson = (path, value) => writeFileSync(path, json(value));
 const readJson = path => JSON.parse(readFileSync(path, "utf8"));
+
+test("Pi discovers exactly Callimachus and Hypatia with their commands and prompt", async () => {
+  const loader = new DefaultResourceLoader({
+    cwd: sandbox, agentDir: sandbox,
+    settingsManager: SettingsManager.inMemory({ packages: [resolve(".")] }),
+    noContextFiles: true, noThemes: true,
+  });
+  await loader.reload();
+  const discovered = loader.getSkills();
+  assert.deepEqual(discovered.diagnostics, []);
+  assert.deepEqual(discovered.skills.map(s => s.name).sort(), ["callimachus", "hypatia"]);
+  const allSkills = loadSkillsFromDir({ dir: resolve("skills"), source: "test" });
+  assert.deepEqual(allSkills.diagnostics, []);
+  assert.deepEqual(allSkills.skills.map(s => s.name).sort(), ["callimachus", "hypatia"]);
+  assert.deepEqual(loader.getExtensions().errors, []);
+  assert.deepEqual(loader.getExtensions().extensions.flatMap(e => [...e.commands.keys()]).sort(),
+    ["callimachus", "callimachus-approve", "hypatia"]);
+  assert.deepEqual(loader.getPrompts().prompts.map(p => p.name), ["callimachus"]);
+
+  const commands = new Map();
+  const messages = [];
+  callimachus({
+    registerCommand: (name, value) => commands.set(name, value),
+    sendUserMessage: message => messages.push(message),
+  });
+  await commands.get("callimachus").handler("A research question");
+  assert.match(messages[0], /Load the "callimachus" skill/);
+  assert.match(messages[0], /A research question/);
+});
 
 function fixture({ fulltext = false, completed = true } = {}) {
   const root = mkdtempSync(join(sandbox, "review-"));
@@ -267,8 +300,8 @@ test("refresh request suspends every synthesis tool; no shell, search, or upstre
   assert.deepEqual(tools.map(t => t.name).sort(), [...toolNames].sort());
   await tools.find(t => t.name === "request_callimachus").execute("1", { reason: "Need an updated completed review." });
   assert.match(reason, /updated/);
-  await assert.rejects(tools.find(t => t.name === "hypathia_snapshot").execute("2", {}), /Awaiting/);
-  await assert.rejects(tools.find(t => t.name === "hypathia_save").execute("3", evidence(snapshot)), /Awaiting/);
+  await assert.rejects(tools.find(t => t.name === "hypatia_snapshot").execute("2", {}), /Awaiting/);
+  await assert.rejects(tools.find(t => t.name === "hypatia_save").execute("3", evidence(snapshot)), /Awaiting/);
 });
 
 test("question-only dispatch delegates the complete Callimachus workflow and reuses its review", async () => {
@@ -280,11 +313,12 @@ test("question-only dispatch delegates the complete Callimachus workflow and reu
     sendUserMessage: message => messages.push(message),
   });
   const ctx = { cwd: sandbox, ui: { notify: () => {} }, hasUI: false };
-  await commands.get("hypathia").handler("question A new research question", ctx);
+  await commands.get("hypatia").handler("question A new research question", ctx);
   assert.equal(messages.length, 1);
+  assert.match(messages[0], /Load the "callimachus" skill/);
   assert.match(messages[0], /ALL nine stages/);
   assert.match(messages[0], /step-8 export is not completion/);
-  await commands.get("hypathia").handler("question A new research question", ctx);
+  await commands.get("hypatia").handler("question A new research question", ctx);
   assert.equal(messages.length, 1);
 });
 
@@ -300,7 +334,7 @@ test("declining curation never finalizes or synthesizes", async () => {
 
 test("interrupted synthesis preserves its upstream refresh requirement across sessions", async () => {
   const { root, snapshot } = fixture();
-  const path = join(root, ".hypathia/request.json");
+  const path = join(root, ".hypatia/request.json");
   const pending = { status: "awaiting_callimachus", question: snapshot.ledger.question,
     reason: "Update the evidence", previous_revision: snapshot.handoff.revision };
   writeJson(path, pending);
@@ -309,7 +343,7 @@ test("interrupted synthesis preserves its upstream refresh requirement across se
   const commands = new Map();
   const notices = [];
   extension({ registerCommand: (name, value) => commands.set(name, value), registerTool: () => {}, sendUserMessage: () => {} });
-  await commands.get("hypathia").handler(root, {
+  await commands.get("hypatia").handler(root, {
     cwd: sandbox, hasUI: false, ui: { notify: message => notices.push(message) },
   });
   assert.deepEqual(notices, ["Waiting for Callimachus to finish a new revision."]);
@@ -341,12 +375,12 @@ test("transport failure after a refresh tool call never releases the old snapsho
   extension({ registerCommand: (name, value) => commands.set(name, value), registerTool: () => {}, sendUserMessage: () => {} });
   const ctx = { cwd: sandbox, hasUI: false, modelRegistry, model: modelRegistry.getAll()[0],
     ui: { notify: message => notices.push(message), setStatus: () => {} } };
-  await commands.get("hypathia").handler(root, ctx);
-  const request = readJson(join(root, ".hypathia/request.json"));
+  await commands.get("hypatia").handler(root, ctx);
+  const request = readJson(join(root, ".hypatia/request.json"));
   assert.equal(request.status, "awaiting_callimachus");
   assert.equal(request.previous_revision, snapshot.handoff.revision);
   assert.match(notices[0], /Synthetic connection interrupted/);
-  await commands.get("hypathia").handler(root, ctx);
+  await commands.get("hypatia").handler(root, ctx);
   assert.match(notices[1], /Waiting for Callimachus/);
 });
 
@@ -383,7 +417,7 @@ test("PDF extractor retains plain-text CLI behavior and emits page hashes/warnin
   const make = spawnSync("uv", ["run", "--python", "3.11", "--with", "pypdf==4.3.1", "python", "-c",
     "from pypdf import PdfWriter; import sys; w=PdfWriter(); w.add_blank_page(width=72,height=72); w.write(sys.argv[1])", pdf], { encoding: "utf8" });
   assert.equal(make.status, 0, make.stderr);
-  const script = resolve("skills/literature-review/scripts/pdf_extract.py");
+  const script = resolve("skills/callimachus/scripts/pdf_extract.py");
   const plain = spawnSync("uv", ["run", script, "--pdf", pdf], { encoding: "utf8" });
   assert.equal(plain.status, 0, plain.stderr);
   assert.equal(plain.stdout, "");

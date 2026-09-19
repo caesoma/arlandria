@@ -44,7 +44,7 @@ export function gateFingerprint(root: string, gate: Gate): string {
   }));
 }
 
-// Called by the user-facing Callimachus approval command, never a Hypathia tool.
+// Called by the user-facing Callimachus approval command, never a Hypatia tool.
 export function approveGate(root: string, gate: Gate, fingerprint: string) {
   if (fingerprint !== gateFingerprint(root, gate)) throw new Error("Review changed during approval; review it again");
   const directory = join(root, ".callimachus");
@@ -115,7 +115,7 @@ export function finalize(root: string): string {
       sources.push({ record_id: record.id, kind: "abstract", artifact, limitation: entry.limitation, warnings: [] });
     }
   }
-  const exporter = fileURLToPath(new URL("../../skills/literature-review/scripts/export.py", import.meta.url));
+  const exporter = fileURLToPath(new URL("../../skills/callimachus/scripts/export.py", import.meta.url));
   for (const format of ["bibtex", "csv"]) {
     const result = spawnSync("uv", ["run", exporter, "--ledger", join(pending, "ledger.json"), "--format", format, "--stdout"], { encoding: "utf8" });
     if (result.error || result.status !== 0) throw new Error(`Final export failed: ${result.error?.message ?? result.stderr}`);
@@ -171,7 +171,7 @@ export function loadSnapshot(root: string, revision?: string): Snapshot {
     if (hash(readFileSync(inside(directory, name))) !== digest) throw new Error(`Modified snapshot artifact: ${name}`);
   if (hash(readFileSync(join(root, "ledger.json"))) !== handoff.ledger_sha256 ||
       hash(readFileSync(join(root, "sources.json"))) !== handoff.sources_sha256)
-    throw new Error("Callimachus has changed; complete its workflow before continuing Hypathia");
+    throw new Error("Callimachus has changed; complete its workflow before continuing Hypatia");
   const { ledger, registry } = completionInputs(root);
   for (const entry of registry.sources) {
     if (entry.kind !== "fulltext") continue;

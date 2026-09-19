@@ -18,6 +18,11 @@
 
 ---
 
+Arlandria provides exactly two skills:
+
+- **`callimachus`** — run the full literature review with `/callimachus <question>`.
+- **`hypatia`** — synthesize completed Callimachus results with `/hypatia <review folder>`.
+
 ### What you type → what happens
 
 ```
@@ -49,7 +54,7 @@ The branded launcher checks for `uv` on start and prints this hint if it is miss
 curl -fsSL <your-host>/install | bash    # or: npm install -g callimachus
 ```
 
-`cal` (alias of `callimachus`) prints the banner and launches Pi with the literature-review skill on the path.
+`cal` (alias of `arlandria`) prints the banner and launches Pi with the `callimachus` and `hypatia` skills and commands.
 
 
 **As a Pi package.** If you don't want to perform an installation of the package, Callimachis can be added to a standard Pi harness as a skill package.
@@ -84,7 +89,7 @@ The model is whatever your `pi` is configured with (local models included) - the
 
 ### How it works
 
-Pi's LLM is the orchestrator and the only decision-maker — it makes every decision and does all interaction itself. The Python files under [`skills/literature-review/scripts/`](skills/literature-review/scripts/) are **deterministic primitives**: JSON in, JSON out, no decisions. The LLM calls them via `bash` with `uv run`, and each script declares its dependencies inline (PEP 723), so `uv` builds a cached per-script environment on first call — no `pip install`, no venv. Everything they read and write lives in one self-contained folder per review — the **review ledger** at `<base>/<slug>/ledger.json`, alongside its `exports/`, `searches/`, and `pdfs/` — which persists across sessions.
+Pi's LLM is the orchestrator and the only decision-maker — it makes every decision and does all interaction itself. The Python files under [`skills/callimachus/scripts/`](skills/callimachus/scripts/) are **deterministic primitives**: JSON in, JSON out, no decisions. The LLM calls them via `bash` with `uv run`, and each script declares its dependencies inline (PEP 723), so `uv` builds a cached per-script environment on first call — no `pip install`, no venv. Everything they read and write lives in one self-contained folder per review — the **review ledger** at `<base>/<slug>/ledger.json`, alongside its `exports/`, `searches/`, and `pdfs/` — which persists across sessions.
 
 **The primitives** (`scripts/`):
 
@@ -106,7 +111,7 @@ effective-include = status == active
 
 i.e. a full-text include, or an abstract include not yet overturned at full text.
 
-For how the pieces fit together end to end, see [docs/architecture.md](docs/architecture.md); the LLM-facing workflow is [skills/literature-review/SKILL.md](skills/literature-review/SKILL.md).
+For how the pieces fit together end to end, see [docs/architecture.md](docs/architecture.md); the LLM-facing workflow is [skills/callimachus/SKILL.md](skills/callimachus/SKILL.md).
 
 ### The 9-step loop
 
@@ -122,16 +127,16 @@ Two steps are **interactive gates** — the LLM proposes, then exchanges and rev
 8. **Export** — BibTeX + CSV of the included set, as soon as abstract screening converges (in hand within the hour). Re-runnable.
 9. **Full-text curation** — asynchronously over later sessions, fetch and read papers and record final verdicts with `--by human`. Never blocks.
 
-### Hypathia: synthesis after Callimachus
+### Hypatia: synthesis after Callimachus
 
 The bundled launcher and Pi package expose:
 
 ```text
-/hypathia /path/to/completed-review
-/hypathia question What does the literature establish about ...?
+/hypatia /path/to/completed-review
+/hypatia question What does the literature establish about ...?
 ```
 
-Hypathia produces a cited Markdown report, presentation brief, SVG evidence and
+Hypatia produces a cited Markdown report, presentation brief, SVG evidence and
 opportunity matrices, gap-to-direction diagram, and review-flow visual. Findings
 and research directions trace to exact passages. Feasibility uses the researcher's
 stated resources; an empty low-effort shortlist is a valid result.
@@ -141,16 +146,16 @@ insufficient. Missing or incomplete research is delegated to Callimachus, which
 retains its interactive criteria, triage, and final curation decisions.
 Use `/callimachus-approve criteria|triage|curation <review folder>` at those gates.
 The final gate validates a source registry and publishes a sealed completion
-snapshot before Hypathia runs.
+snapshot before Hypatia runs.
 
-Hypathia runs in a separate Pi SDK session with only snapshot-reading,
+Hypatia runs in a separate Pi SDK session with only snapshot-reading,
 evidence-writing, rendering, and upstream-request tools. It inherits no shell,
 search tool, filesystem reader, extensions, skills, or project instructions.
 Any requested refresh returns to Callimachus and waits for a new completed result.
 The configured Pi model/authentication is reused for synthesis.
 
-See the [skill](skills/hypathia/SKILL.md) and
-[completion and evidence contracts](skills/hypathia/references/contracts.md)
+See the [skill](skills/hypatia/SKILL.md) and
+[completion and evidence contracts](skills/hypatia/references/contracts.md)
 for setup, schemas, access limitations, resume behavior, and output locations.
 
 ### Development checks
@@ -160,7 +165,7 @@ Use Node 24 (`nvm use`, as specified by `.nvmrc`) and `uv`:
 ```bash
 npm install
 npm run check
-uv run --with ruff==0.14.8 ruff check --select E9,F63,F7,F82 skills/literature-review/scripts/pdf_extract.py
+uv run --with ruff==0.14.8 ruff check --select E9,F63,F7,F82 skills/callimachus/scripts/pdf_extract.py
 ```
 
 The native Node tests exercise deterministic primitives and the actual Pi SDK
@@ -171,18 +176,22 @@ and human gate decisions.
 ### Package layout
 
 ```
-callimachus/
+arlandria/
 ├── logo.mjs                      # the lettering
 ├── package.json                  # pi-package: ships skills/ + prompts/ + extensions/ via the "pi" field
-├── bin/callimachus.js            # branded launcher (alias: cal): banner, then hands off to Pi
-├── extensions/litreview/         # registers the /litreview + /literature-review slash commands
-├── prompts/litreview.md          # the /litreview prompt workflow
-├── skills/literature-review/
+├── bin/arlandria.js              # branded launcher (alias: cal): banner, then hands off to Pi
+├── extensions/callimachus/       # registers /callimachus
+├── extensions/hypatia/           # isolated synthesis and Callimachus approval commands
+├── prompts/callimachus.md        # the /callimachus prompt workflow
+├── skills/callimachus/
 │   ├── SKILL.md                  # the 9-step workflow the LLM follows
 │   ├── references/ledger_schema.md
 │   └── scripts/                  # search · dedupe · ledger (write-tool)
 │                                  #  · resolve · pdf_extract · export
-├── docs/                         # architecture.md · callimachus-spec.md
-├── .callimachus/                 # settings.json + SYSTEM.md
+├── skills/hypatia/
+│   ├── SKILL.md                  # grounded synthesis of completed Callimachus results
+│   └── references/contracts.md
+├── docs/                         # architecture.md · arlandria-spec.md
+├── .arlandria/                    # settings.json + SYSTEM.md
 └── scripts/install/              # install.sh · install.ps1
 ```
