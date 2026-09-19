@@ -147,19 +147,23 @@ Hypatia findings and disagreements; gaps and currency; author proposals and
 Hypatia feasibility; and coverage, limitations, and researcher resources.
 It needs no external images, bibliography build, custom theme, or model call.
 
-Compile it from its export directory using a TeX installation with Beamer and
-fontspec:
+Compile it from its export directory using a TeX installation with Beamer,
+fontspec, and the DejaVu Sans font (for Unicode scientific text):
 
 ```bash
 lualatex -no-shell-escape -interaction=nonstopmode -halt-on-error slides.tex
 ```
+
+For scripts outside that font's coverage, select a suitable font in the preamble.
+Missing glyphs fail compilation rather than silently disappearing.
 
 Rendering delivers the source, not a compiled PDF, and requires no TeX install.
 All supplied content is escaped as literal text. Scientific entries retain claim
 IDs, source IDs, and PDF page/abstract locators. Statements, uncertainty, and
 feasibility context are kept together rather than truncated mid-sentence.
 The deck selects whole entries in review order within fixed space budgets and
-explicitly counts omissions; it does not rank evidence. Full criteria, source
+explicitly counts omissions; it does not rank evidence. Frames shrink to fit
+when necessary rather than overflowing or adding slides. Full criteria, source
 quotations, references, and omitted assessments remain in `report.md`.
 Empty or inconclusive reviews still produce six frames with explicit empty states.
 

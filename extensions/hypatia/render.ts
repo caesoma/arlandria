@@ -48,7 +48,7 @@ export function beamer(snapshot: Snapshot, evidence: Evidence, context: Research
     return `${id}: ${claim.source_id}, ${source.kind === "abstract" ? "abstract" : `PDF p. ${claim.page}`} (${claim.verification.status})`;
   }).join("; ");
   const frame = (title: string, body: string) =>
-    `\\begin{frame}[t]{${tex(title)}}\n\\small\n${body}\n\\end{frame}`;
+    `\\begin{frame}[t,shrink=0]{${tex(title)}}\n\\small\n${body}\n\\end{frame}`;
   const fulltext = handoff.sources.filter(s => s.kind === "fulltext").length;
   const unresolved = evidence.claims.filter(c => c.verification.status !== "supported");
   const limitations = [
@@ -61,11 +61,13 @@ export function beamer(snapshot: Snapshot, evidence: Evidence, context: Research
     "% Compile with: lualatex -no-shell-escape -interaction=nonstopmode -halt-on-error slides.tex",
     "\\documentclass[aspectratio=169]{beamer}",
     "\\usepackage{fontspec}",
+    "\\setsansfont{DejaVu Sans}",
+    "\\tracinglostchars=3",
     "\\setbeamertemplate{navigation symbols}{}",
-    "\\setbeamertemplate{footline}[frame number]",
+    "\\setbeamertemplate{footline}{\\hfill\\insertframenumber\\kern1em\\vskip2pt}",
     "\\begin{document}",
     frame("Callimachus / Hypatia summary", [
-      slideList([`Question: ${ledger.question}`, `Audience: ${context.audience}`], "", 550, 2),
+      slideList([`Question: ${ledger.question}`, `Audience: ${context.audience}`], "", 400, 2),
       `\\medskip\n${tex(`Search cutoff: ${handoff.cutoff}. Final included publications: ${handoff.included_ids.length}.`)}\\par`,
       `${tex(`Callimachus revision: ${handoff.revision}`)}\\par`,
       "\\medskip\nPublication counts are not independent-study counts or evidence-quality scores.\\par",
@@ -74,9 +76,9 @@ export function beamer(snapshot: Snapshot, evidence: Evidence, context: Research
     frame("Callimachus criteria", [
       `${tex(`Approved criteria version: ${ledger.criteria.version}`)}\\par`,
       "\\medskip\n\\textbf{Include}",
-      slideList(ledger.criteria.include, "No inclusion criteria specified.", 350, 3),
+      slideList(ledger.criteria.include, "No inclusion criteria specified.", 250, 3),
       "\\medskip\n\\textbf{Exclude}",
-      slideList(ledger.criteria.exclude, "No exclusion criteria specified.", 350, 3),
+      slideList(ledger.criteria.exclude, "No exclusion criteria specified.", 250, 3),
     ].join("\n")),
     frame("Hypatia: findings and disagreements", slideList(evidence.findings.map(f =>
       `${f.id}: ${f.statement} Evidence: ${citations(f.claim_ids)}. Strength: ${f.strength} ` +
@@ -107,10 +109,10 @@ export function beamer(snapshot: Snapshot, evidence: Evidence, context: Research
       `${tex(`Included: ${fulltext} full text; ${handoff.sources.length - fulltext} abstract only. ` +
         `${unresolved.length} uncertain or contradicted claim(s); ${evidence.source_reviews.filter(r => r.status === "unreadable").length} unreadable source(s).`)}\\par`,
       "\\medskip\n\\textbf{Access and uncertainty}",
-      slideList(limitations, "No access warnings or unresolved claims recorded; this does not establish certainty.", 350, 2),
+      slideList(limitations, "No access warnings or unresolved claims recorded; this does not establish certainty.", 250, 2),
       "\\medskip\n\\textbf{Researcher resources}",
       slideList(context.resources.map(r => `${r.id}: ${r.description}`),
-        "No resources supplied; low-effort shortlisting is disabled.", 250, 2),
+        "No resources supplied; low-effort shortlisting is disabled.", 200, 2),
       "\\medskip\nHypatia performs no additional search. All details and omitted entries remain in \\texttt{report.md}.",
     ].join("\n")),
     "\\end{document}", "",
