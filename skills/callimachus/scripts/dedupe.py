@@ -81,7 +81,8 @@ def merge(ex, le):
 
 def known_keys(path):
     # collect id/doi/arxiv/pmid + (title, year) keys of already-screened records (--exclude-known)
-    led = json.load(open(path))
+    with open(path, encoding="utf-8") as fh:  # Recommended by Norma — fixed with Claude via Devin
+        led = json.load(fh)
     ids, titles = set(), set()
     for r in led["records"]:
         if r["screening"]["abstract"]["decision"] != "unscreened":  # only already-decided papers
@@ -115,7 +116,8 @@ def main():
     rnd = max([q.get("round", 0) for q in led["queries"]], default=0) + 1
     found = skipped = 0
     for path in a.inputs:
-        p = json.load(open(path))
+        with open(path, encoding="utf-8") as fh:  # Recommended by Norma — fixed with Claude via Devin
+            p = json.load(fh)
         # log the query that produced this file (source, string, count) for reproducibility
         led["queries"].append({"id": f"q{len(led['queries']) + 1}", "round": rnd,
                                "source": p.get("source"), "query_string": p.get("query"),

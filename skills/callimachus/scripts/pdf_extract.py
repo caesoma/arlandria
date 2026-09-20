@@ -41,7 +41,8 @@ def main():
             "warnings": warnings,
         }, indent=2, ensure_ascii=False) + "\n"
     if a.out:
-        open(a.out, "w").write(text)  # persist to the sidecar file and report its path
+        with open(a.out, "w", encoding="utf-8") as fh:  # persist to the sidecar file and report its path. Recommended by Norma — fixed with Claude via Devin
+            fh.write(text)
         print(a.out)
     else:
         sys.stdout.write(text)  # otherwise stream the full text to stdout

@@ -31,7 +31,7 @@ def _load_dotenv():
         f = root / ".env"
         if not f.exists():
             continue
-        for line in f.read_text().splitlines():
+        for line in f.read_text(encoding="utf-8").splitlines():  # Recommended by Norma — fixed with Claude via Devin
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
@@ -57,6 +57,9 @@ def die(msg):
     sys.exit(1)
 
 
+HTTP_TIMEOUT_SECONDS = 30  # Recommended by Norma — fixed with Claude via Devin
+
+
 def get(url, params=None, headers=None, tries=3):
     """One HTTP GET - the single outbound path every backend and resolver shares.
 
@@ -67,7 +70,7 @@ def get(url, params=None, headers=None, tries=3):
     if headers:
         h.update(headers)  # caller extras (e.g. Semantic Scholar's x-api-key) win
     for i in range(tries):
-        r = requests.get(url, params=params, headers=h, timeout=30)
+        r = requests.get(url, params=params, headers=h, timeout=HTTP_TIMEOUT_SECONDS)  # Recommended by Norma — fixed with Claude via Devin
         if r.status_code == 429:
             time.sleep(2 ** i)  # 1s, 2s, 4s … then give up and raise
             continue
@@ -157,7 +160,8 @@ def ledger_entry(rec):
 def load_ledger(path):
     # open an existing ledger, or mint an empty one whose review_id names the review
     if os.path.exists(path):
-        return json.load(open(path))
+        with open(path, encoding="utf-8") as fh:  # Recommended by Norma — fixed with Claude via Devin
+            return json.load(fh)
     # review_id is the filename stem - but a generic "ledger" (the per-review-folder layout,
     # <base>/<slug>/ledger.json) takes its id from the containing folder name instead, so every
     # review's ledger can share the canonical name `ledger.json` without colliding on "ledger".
@@ -192,7 +196,8 @@ def recompute_stats(led):
 def save_ledger(path, led):
     led["updated"] = now()
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)  # create the review folder on first save
-    json.dump(led, open(path, "w"), indent=2, ensure_ascii=False)
+    with open(path, "w", encoding="utf-8") as fh:  # Recommended by Norma — fixed with Claude via Devin
+        json.dump(led, fh, indent=2, ensure_ascii=False)
 
 
 def norm_title(t):
