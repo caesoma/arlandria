@@ -7,7 +7,10 @@
 # ///
 """Extract plain text from a PDF so the LLM can read the full paper.
 
-Workflow step 9, on request only: turns a resolved PDF into text the LLM can read to record a full-text verdict. With --out it writes a sidecar .txt and prints the path; otherwise it streams the text to stdout. Embedded-text only: it reads the real text layer of a born-digital PDF; a scanned (image-only) PDF has no such layer and yields empty text - that case would need OCR (see note below).
+Workflow step 9, on request only: turns a resolved PDF into text the LLM can read to record a
+full-text verdict. With --out it writes a sidecar .txt and prints the path; otherwise it streams the
+text to stdout. Embedded-text only: it reads the real text layer of a born-digital PDF; a scanned
+(image-only) PDF has no such layer and yields empty text - that case would need OCR (see note below).
 
 Usage: pdf_extract.py --pdf path/to/paper.pdf [--out paper.txt]
 NOTE: starting point. For scanned PDFs add OCR; consider the pi-docparser
