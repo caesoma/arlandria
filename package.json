@@ -1,0 +1,67 @@
+{
+  "name": "arlandria",
+  "version": "0.2.0",
+  "description": "Arlandria - semi-automated literature-review agent and Pi package",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0 <25"
+  },
+  "bin": {
+    "arlandria": "bin/arlandria.js"
+  },
+  "files": [
+    "bin/",
+    "skills/",
+    "prompts/",
+    "extensions/",
+    ".arlandria/settings.json",
+    ".arlandria/SYSTEM.md",
+    "logo.mjs",
+    "logo.d.mts",
+    "scripts/check-node-version.mjs",
+    "scripts/install/",
+    "AGENTS.md",
+    "README.md",
+    ".env.example"
+  ],
+  "scripts": {
+    "preinstall": "node ./scripts/check-node-version.mjs",
+    "start": "node ./bin/arlandria.js",
+    "lint": "eslint extensions tests && node --check bin/arlandria.js",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm run lint && npm run typecheck && npm test"
+  },
+  "keywords": [
+    "pi-package",
+    "literature-review",
+    "research-agent",
+    "pubmed",
+    "openalex"
+  ],
+  "pi": {
+    "skills": [
+      "./skills/callimachus",
+      "./skills/hypatia"
+    ],
+    "prompts": [
+      "./prompts"
+    ],
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "0.85.1",
+    "@earendil-works/pi-coding-agent": "0.85.1",
+    "jiti": "2.7.0",
+    "typebox": "1.1.38"
+  },
+  "devDependencies": {
+    "@types/node": "24.12.4",
+    "eslint": "10.0.3",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.57.0"
+  }
+}

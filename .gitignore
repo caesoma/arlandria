@@ -1,0 +1,12 @@
+node_modules/
+dist/
+reviews/
+outputs/
+*.log
+.env
+
+# Review folders live at the chosen base (external by default, e.g. ~/arlandria-reviews).
+# Also ignore the in-package / legacy review artifacts so review data is never committed.
+skills/callimachus/references.bib
+skills/callimachus/references.csv
+skills/callimachus/results_*.json
