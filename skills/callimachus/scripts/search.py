@@ -3,6 +3,7 @@
 # requires-python = ">=3.11"
 # dependencies = [
 #   "requests==2.32.*",  # used transitively via _common (polite HTTP); uv builds an isolated env
+#   "defusedxml==0.7.*",  # XXE-safe parsing of PubMed/arXiv XML. Recommended by Norma — fixed with Claude via Devin
 # ]
 # ///
 """Search one bibliographic backend; print lean normalized records as JSON to stdout.
@@ -33,7 +34,8 @@ Usage: search.py --source openalex --query "CRISPR off-target detection" [--limi
        search.py --source openalex --query "..." --filter type:preprint
        search.py --source arxiv --query "..." --since 2026-05-01
 """
-import argparse, datetime, json, os, re, sys, xml.etree.ElementTree as ET  # ET: PubMed/arXiv are XML
+import argparse, datetime, json, os, re, sys
+import defusedxml.ElementTree as ET  # ET: PubMed/arXiv are XML; defused against XXE/billion-laughs. Recommended by Norma — fixed with Claude via Devin
 from _common import get, search_record, die, EMAIL
 
 
@@ -129,7 +131,7 @@ def arxiv(q, a):
     feed = get("https://export.arxiv.org/api/query", params).text
     ns = {"a": "http://www.w3.org/2005/Atom"}  # Atom namespace - every findtext needs it
     out = []
-    for e in ET.fromstring(feed).findall("a:entry", ns):
+    for e in ET.fromstring(feed).findall("a:entry", ns):  # Recommended by Norma — fixed with Claude via Devin
         published = (e.findtext("a:published", default="", namespaces=ns) or "")
         if a.since and published[:10] < a.since:  # ISO dates compare lexically
             continue
@@ -234,7 +236,7 @@ def pubmed(q, a):
               "rettype": "abstract", "retmode": "xml", "email": EMAIL}).text
     abs_by_pmid = {}
     # an abstract may arrive as several <AbstractText> chunks (Background/Methods/...) - join them
-    for art in ET.fromstring(xml).findall(".//PubmedArticle"):
+    for art in ET.fromstring(xml).findall(".//PubmedArticle"):  # Recommended by Norma — fixed with Claude via Devin
         pmid = art.findtext(".//PMID")
         chunks = [e.text or "" for e in art.findall(".//Abstract/AbstractText")]
         abs_by_pmid[pmid] = " ".join(c.strip() for c in chunks).strip() or None

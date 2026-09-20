@@ -602,7 +602,7 @@ test("interrupted synthesis preserves its upstream refresh requirement across se
 test("bundled CLI launches outside the repository without a global pi or npm PATH", () => {
   const result = spawnSync(process.execPath, [resolve("bin/arlandria.js"), "--offline", "--version"], {
     cwd: sandbox, encoding: "utf8",
-    env: { ...process.env, PATH: "/usr/bin:/bin", CALLIMACHUS_SKIP_UV_CHECK: "1", CALLIMACHUS_QUIET: "1" },
+    env: { ...process.env, PATH: "/usr/bin:/bin", ARLANDRIA_SKIP_UV_CHECK: "1", ARLANDRIA_QUIET: "1" },
   });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout + result.stderr, /^\d+\.\d+\.\d+\s*$/);

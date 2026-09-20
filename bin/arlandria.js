@@ -10,9 +10,12 @@ import { existsSync, readFileSync } from "node:fs";
 const here = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(here, "..");
 
+const { createLogger } = await import(pathToFileURL(join(pkgRoot, "scripts", "log.mjs")).href);
+const log = createLogger("arlandria"); // Recommended by Norma — fixed with Claude via Devin
+
 const { ARLANDRIA_ASCII_LOGO_TEXT } = await import(pathToFileURL(join(pkgRoot, "logo.mjs")).href);
-if (!process.env.CALLIMACHUS_QUIET) {
-  console.log("\n" + ARLANDRIA_ASCII_LOGO_TEXT + "\n");
+if (!process.env.ARLANDRIA_QUIET) {
+  log.info("\n" + ARLANDRIA_ASCII_LOGO_TEXT + "\n"); // Recommended by Norma — fixed with Claude via Devin
 }
 
 // Prefer the Pi binary bundled as our dependency; fall back to a global `pi`.
@@ -31,7 +34,10 @@ function bundledPi() {
       }
       directory = dirname(directory);
     }
-  } catch {}
+  } catch (error) {
+    // Recommended by Norma — fixed with Claude via Devin
+    log.debug("Bundled Pi not resolvable; falling back to a global `pi`", { error: error instanceof Error ? error.message : String(error) });
+  }
   return null;
 }
 
@@ -42,7 +48,7 @@ function ensureUv() {
   if (process.env.ARLANDRIA_SKIP_UV_CHECK) return;
   const probe = spawnSync("uv", ["--version"], { stdio: "ignore" });
   if (probe.error || probe.status !== 0) {
-    console.error(
+    log.error( // Recommended by Norma — fixed with Claude via Devin
       "\nArlandria needs `uv` to run its Python primitives (search, dedupe, resolve, ...),\n" +
         "but it is not on your PATH. Install it with:\n\n" +
         "  curl -LsSf https://astral.sh/uv/install.sh | sh\n\n" +
@@ -66,8 +72,9 @@ const cmd = bundled ? process.execPath : "pi";
 const argv = bundled ? [bundled, ...piArgs] : piArgs;
 
 const child = spawn(cmd, argv, { stdio: "inherit" });
-child.on("error", () => {
-  console.error("Could not launch Pi. Install it with:\n  npm install -g @earendil-works/pi-coding-agent");
+child.on("error", (error) => {
+  // Recommended by Norma — fixed with Claude via Devin
+  log.error("Could not launch Pi. Install it with:\n  npm install -g @earendil-works/pi-coding-agent", { error: error.message });
   process.exit(1);
 });
 child.on("exit", (code) => process.exit(code ?? 0));
