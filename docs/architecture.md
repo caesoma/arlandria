@@ -81,7 +81,7 @@ full-text acquisition and human curation:
 ```text
 Callimachus ledger + sources.json + human gate approvals
     → finalizer → .callimachus/completed/<revision>/handoff.json
-    → isolated Hypatia session → validated evidence → Markdown / SVG / audit
+    → isolated Hypatia session → validated evidence → Markdown / SVG / Beamer / audit
 ```
 
 The early step-8 export is non-terminal. `/callimachus-approve curation` checks

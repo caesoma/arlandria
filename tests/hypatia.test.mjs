@@ -18,8 +18,8 @@ process.env.HOME = sandbox;
 after(() => { process.env.HOME = originalHome; rmSync(sandbox, { recursive: true }); });
 const jiti = createJiti(import.meta.url);
 const { approveGate, gateFingerprint, finalize, loadSnapshot } = await jiti.import("../extensions/hypatia/handoff.ts");
-const { validateEvidence, saveEvidence, evidenceDirectory, loadEvidence } = await jiti.import("../extensions/hypatia/evidence.ts");
-const { render, shortlist } = await jiti.import("../extensions/hypatia/render.ts");
+const { validateEvidence, saveEvidence, evidenceDirectory, evidenceDigest, loadContext, loadEvidence } = await jiti.import("../extensions/hypatia/evidence.ts");
+const { beamer, render, shortlist } = await jiti.import("../extensions/hypatia/render.ts");
 const { restrictedTools, isolatedOptions, hypatiaModelRuntime, toolNames } = await jiti.import("../extensions/hypatia/runtime.ts");
 const { hash, json, inside } = await jiti.import("../extensions/hypatia/storage.ts");
 const { default: extension, pauseRequest } = await jiti.import("../extensions/hypatia/index.ts");
@@ -170,6 +170,127 @@ test("complete handoff, grounded evidence, Markdown and all SVGs share provenanc
   assert.equal(render(snapshot), output);
   assert.deepEqual(readFileSync(join(root, "ledger.json")), before);
   assert.equal(readJson(join(output, "provenance.json")).handoff.revision, snapshot.handoff.revision);
+});
+
+test("Beamer delivery includes six frames of approved criteria and cited Hypatia assessments", () => {
+  for (const fulltext of [false, true]) {
+    const { root, ledger } = fixture({ fulltext, completed: false });
+    ledger.criteria.exclude = ["Exclude animal-only studies"];
+    writeJson(join(root, "ledger.json"), ledger);
+    for (const gate of ["criteria", "triage", "curation"]) approveGate(root, gate, gateFingerprint(root, gate));
+    finalize(root);
+    const snapshot = loadSnapshot(root);
+    writeJson(join(evidenceDirectory(snapshot), "context.json"), context);
+    const document = evidence(snapshot);
+    document.findings[0].disagreements = ["c2"];
+    saveEvidence(snapshot, document);
+    const output = render(snapshot);
+    const slides = readFileSync(join(output, "slides.tex"), "utf8");
+    assert.match(slides, /\\documentclass\[aspectratio=169\]\{beamer\}/);
+    assert.equal(slides.match(/\\begin\{frame\}/g).length, 6);
+    assert.equal(slides.match(/\\end\{frame\}/g).length, 6);
+    assert.match(slides, /Relevant evidence/);
+    assert.match(slides, /Exclude animal-only studies/);
+    assert.match(slides, /What is established about this association\?/);
+    assert.match(slides, /2026-09-19/);
+    assert.ok(slides.includes(snapshot.handoff.revision));
+    assert.match(slides, /The association does not establish causation/);
+    assert.match(slides, /Counterevidence: c2: paper-1/);
+    assert.ok(slides.includes(fulltext ? "c1: paper-1, PDF p. 1" : "c1: paper-1, abstract"));
+    assert.match(slides, /open-in-reviewed-corpus/);
+    assert.match(slides, /Future work should evaluate rural clinics/);
+    assert.match(slides, /Effort: low/);
+    assert.match(slides, /Prerequisites: Clinic data/);
+    assert.match(slides, /r1: Approved data/);
+    assert.match(slides, /Feasibility is Hypatia's assessment, not an author claim/);
+    assert.equal(readJson(join(output, "provenance.json")).evidence_digest, evidenceDigest(snapshot));
+  }
+});
+
+test("Beamer escapes TeX metacharacters and preserves Unicode as literal text", () => {
+  const { snapshot } = fixture();
+  const document = evidence(snapshot);
+  snapshot.ledger.criteria.include = ["café α β ≤ 5% & $10 #1 a_b {group} ~ ^ \\input{untrusted}\nnext"];
+  snapshot.ledger.criteria.exclude = ["\\end{frame} ^^5cwrite18{untrusted}"];
+  const constraints = { audience: "\\input{audience}", resources: [{ id: "r1", description: "50% & data_set" }] };
+  document.findings[0].statement = "\\input{finding} association";
+  document.gaps[0].statement = "\\input{gap}";
+  document.claims[2].statement = "\\input{direction}";
+  snapshot.handoff.sources[0].limitation = "\\input{limitation}";
+  const slides = beamer(snapshot, document, constraints);
+  assert.ok(slides.includes("café α β ≤ 5\\% \\& \\$10 \\#1 a\\_b \\{group\\} \\textasciitilde{} \\textasciicircum{} \\textbackslash{}input\\{untrusted\\} next"));
+  for (const name of ["audience", "finding", "gap", "direction", "limitation"])
+    assert.ok(slides.includes(`\\textbackslash{}input\\{${name}\\}`));
+  assert.ok(slides.includes("\\textasciicircum{}\\textasciicircum{}5cwrite18\\{untrusted\\}"));
+  assert.ok(slides.includes("50\\% \\& data\\_set"));
+  assert.doesNotMatch(slides, /\\input\{|\\write18|\\includegraphics/);
+  assert.equal(slides.match(/\\end\{frame\}/g).length, 6);
+});
+
+test("Beamer keeps inconclusive assessments and empty sections explicit", () => {
+  const { snapshot } = fixture();
+  const document = evidence(snapshot);
+  document.gaps[0].status = "unresolved";
+  document.gaps[0].currency.checked_source_ids = [];
+  document.opportunities[0].feasibility.effort = "unknown";
+  document.opportunities[0].feasibility.unknowns = ["Data access"];
+  document.opportunities[0].feasibility.resource_ids = [];
+  saveEvidence(snapshot, document);
+  const slides = readFileSync(join(render(snapshot), "slides.tex"), "utf8");
+  assert.match(slides, /Status: unresolved/);
+  assert.match(slides, /Effort: unknown/);
+  assert.match(slides, /Unknowns: Data access/);
+  assert.match(slides, /0 direction\(s\) meet the low-effort criteria/);
+
+  const empty = { ...document, claims: [], findings: [], gaps: [], opportunities: [],
+    source_reviews: [{ source_id: "paper-1", status: "unreadable", note: "Text unavailable." }] };
+  writeJson(join(evidenceDirectory(snapshot), "context.json"), { audience: "Peers", resources: [] });
+  saveEvidence(snapshot, empty);
+  const emptySlides = readFileSync(join(render(snapshot), "slides.tex"), "utf8");
+  assert.equal(emptySlides.match(/\\begin\{frame\}/g).length, 6);
+  assert.match(emptySlides, /No supported findings were established/);
+  assert.match(emptySlides, /No author-stated gaps were established/);
+  assert.match(emptySlides, /No author-proposed opportunities were established/);
+  assert.match(emptySlides, /No resources supplied/);
+  assert.match(emptySlides, /1 unreadable source/);
+  assert.match(emptySlides, /Text unavailable/);
+});
+
+test("large Beamer summaries omit whole entries without cutting off qualifications", () => {
+  const { snapshot } = fixture();
+  const document = evidence(snapshot);
+  snapshot.ledger.criteria.include = Array.from({ length: 100 }, (_, i) => `Inclusion criterion ${i}`);
+  snapshot.ledger.criteria.exclude = ["x".repeat(100), "Keep this short exclusion"];
+  const statement = "This evidence ".repeat(100) + "does not establish causation.";
+  document.findings = [{ ...document.findings[0], statement }, ...Array.from({ length: 20 }, (_, i) =>
+    ({ ...document.findings[0], id: `f${i + 2}` }))];
+  const slides = beamer(snapshot, document, loadContext(snapshot));
+  assert.equal(slides.match(/\\begin\{frame\}/g).length, 6);
+  assert.match(slides, /97 item\(s\) omitted for space/);
+  assert.match(slides, /19 item\(s\) omitted for space/);
+  assert.match(slides, /Keep this short exclusion/);
+  assert.doesNotMatch(slides, /This evidence/);
+  assert.match(slides, /The association does not establish causation/);
+  assert.doesNotMatch(slides, /allowframebreaks/);
+});
+
+test("renderer upgrades produce Beamer without mutating pre-Beamer deliveries", () => {
+  const { snapshot } = fixture();
+  saveEvidence(snapshot, evidence(snapshot));
+  const root = evidenceDirectory(snapshot);
+  const oldDigest = evidenceDigest(snapshot);
+  const oldDirectory = join(root, "exports", oldDigest);
+  mkdirSync(oldDirectory, { recursive: true });
+  writeFileSync(join(oldDirectory, "report.md"), "Historical report");
+  writeJson(join(root, "delivery.json"), { digest: oldDigest, directory: oldDirectory });
+  const output = render(snapshot);
+  assert.notEqual(output, oldDirectory);
+  assert.ok(existsSync(join(output, "slides.tex")));
+  assert.equal(readFileSync(join(oldDirectory, "report.md"), "utf8"), "Historical report");
+  assert.equal(existsSync(join(oldDirectory, "slides.tex")), false);
+  assert.equal(render(snapshot), output);
+  assert.equal(readJson(join(root, "delivery.json")).directory, output);
+  assert.equal(readJson(join(output, "provenance.json")).renderer_version, 2);
 });
 
 test("early exports, missing gates, stale criteria, borderlines, and non-human curation are blocked", () => {

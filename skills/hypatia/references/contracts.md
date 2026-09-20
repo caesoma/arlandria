@@ -115,9 +115,10 @@ request.json
   evidence.json
   history/<evidence-hash>.json
   delivery.json
-  exports/<evidence-and-context-hash>/
+  exports/<evidence-context-and-renderer-hash>/
     report.md
     brief.md
+    slides.tex
     evidence-matrix.svg
     opportunity-matrix.svg
     gap-directions.svg
@@ -130,10 +131,37 @@ request.json
 ```
 
 Writes use atomic replacement; evidence versions and deliveries retain history.
+The export hash includes the renderer version, so re-rendering an older delivery
+adds the new output set in a separate directory without replacing historical
+files. `provenance.json` records the evidence/context digest and renderer version.
 All sources need a reviewed/unreadable disposition before rendering. Changing
 the ledger, source registry, extraction, PDF, or completion revision blocks tool
 calls until Callimachus completes again. No previously generated report is
 silently reused against a new revision.
+
+### Beamer presentation
+
+`slides.tex` is a standalone, minimal 16:9 Beamer document with six frames:
+review scope and provenance; approved Callimachus inclusion/exclusion criteria;
+Hypatia findings and disagreements; gaps and currency; author proposals and
+Hypatia feasibility; and coverage, limitations, and researcher resources.
+It needs no external images, bibliography build, custom theme, or model call.
+
+Compile it from its export directory using a TeX installation with Beamer and
+fontspec:
+
+```bash
+lualatex -no-shell-escape -interaction=nonstopmode -halt-on-error slides.tex
+```
+
+Rendering delivers the source, not a compiled PDF, and requires no TeX install.
+All supplied content is escaped as literal text. Scientific entries retain claim
+IDs, source IDs, and PDF page/abstract locators. Statements, uncertainty, and
+feasibility context are kept together rather than truncated mid-sentence.
+The deck selects whole entries in review order within fixed space budgets and
+explicitly counts omissions; it does not rank evidence. Full criteria, source
+quotations, references, and omitted assessments remain in `report.md`.
+Empty or inconclusive reviews still produce six frames with explicit empty states.
 
 `/hypatia question <question>` uses a stable review folder keyed by normalized
 question under the working directory's `reviews/`. Reuse that folder rather than
