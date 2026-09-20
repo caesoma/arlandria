@@ -19,9 +19,5 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 }
 Write-Host "==> Installing arlandria (npm, global)"
 npm install -g arlandria
-<<<<<<< HEAD
-Write-Host "==> Done. Run:  cal `"review the literature on <your topic>`""
-=======
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Write-Host "==> Done. Run:  arlandria `"review the literature on <your topic>`""
->>>>>>> devin/1789827103-hypathia

@@ -1,13 +1,7 @@
-<<<<<<< HEAD
-# Architecture — how Arlandria is plumbed together
-
-Arlandria is a [Pi](https://pi.dev) package that adds the semi-automated `callimachus` skill.
-=======
 # Architecture — Callimachus and Hypatia
 
 Arlandria is a [Pi](https://pi.dev) package with exactly two skills:
 `callimachus` for the literature review and `hypatia` for synthesis of its completed results.
->>>>>>> devin/1789827103-hypathia
 This document is the map: what the pieces are, how they connect, and how a request flows from a typed
 question to a BibTeX file.
 
@@ -42,59 +36,36 @@ The package declares its Pi contributions in [`package.json`](../package.json) u
 ```
 
 When Pi loads `arlandria` as a package (`{ "packages": ["npm:arlandria"] }` in the user's Pi
-<<<<<<< HEAD
-settings), it auto-discovers the skill, the `/litreview` prompt, and the slash-command extension.
-=======
 settings), it loads both skills, the `/callimachus` prompt, and their command extensions.
->>>>>>> devin/1789827103-hypathia
 
 There are two ways to run it:
 
 - **As a Pi package** — add it to Pi settings; then just talk to `pi`.
-<<<<<<< HEAD
-- **As a branded CLI** — the `cal` / `arlandria` launcher
-  ([`bin/arlandria.js`](../bin/arlandria.js)) prints the banner and spawns Pi with the skill and extension already on the path:
-
-  ```
-  pi -e extensions/litreview/index.ts --skill skills/callimachus  …
-=======
 - **As a branded CLI** — the `arlandria` launcher
   ([`bin/arlandria.js`](../bin/arlandria.js)) prints the banner and spawns Pi with both skills and
   extensions already on the path:
 
   ```
   pi -e extensions/callimachus/index.ts -e extensions/hypatia/index.ts --skill skills/callimachus --skill skills/hypatia …
->>>>>>> devin/1789827103-hypathia
   ```
 
   It prefers the Pi binary bundled as a dependency and falls back to a global `pi`.
 
-<<<<<<< HEAD
-The `.arlandria/` directory (`SYSTEM.md` + `settings.json`) is the rebranded Pi config dir — Pi's normal `.pi/` settings under the Arlandria name. `SYSTEM.md` is the standing system instruction ("you are a callimachus assistant…"); `settings.json` holds Pi harness settings (`packages`, `quietStartup`, `collapseChangelog`).
-=======
 The `.arlandria/` directory (`SYSTEM.md` + `settings.json`) is the rebranded Pi config dir — Pi's
 normal `.pi/` settings under the Callimachus name. `SYSTEM.md` is the standing system instruction
 ("you are a literature-review assistant…"); `settings.json` holds Pi harness settings (`packages`,
 `quietStartup`, `collapseChangelog`).
->>>>>>> devin/1789827103-hypathia
 
 ## The moving parts
 
 | Piece | Path | Role |
 |------|------|------|
-<<<<<<< HEAD
-| Launcher | [`bin/arlandria.js`](../bin/arlandria.js) | Branded entry point (`cal`); banner, then hands off to Pi. |
-| Extension | [`extensions/litreview/index.ts`](../extensions/litreview/index.ts) | Registers the `/litreview` and `/literature-review` slash commands; kicks the LLM into the skill's workflow. |
-| Prompt | [`prompts/litreview.md`](../prompts/litreview.md) | The `/litreview` slash-command body — disciplines + handoff to the skill. |
-| Skill | [`skills/callimachus/SKILL.md`](../skills/callimachus/SKILL.md) | **The workflow** the LLM follows: the 9-step loop, the interactive gates, the screening discipline. |
-=======
 | Launcher | [`bin/arlandria.js`](../bin/arlandria.js) | Branded entry point (`arlandria`); banner, then hands off to Pi. |
 | Callimachus extension | [`extensions/callimachus/index.ts`](../extensions/callimachus/index.ts) | Registers `/callimachus`; kicks the LLM into the review workflow. |
 | Hypatia extension | [`extensions/hypatia/index.ts`](../extensions/hypatia/index.ts) | Registers `/hypatia` and `/callimachus-approve`; enforces the completed-review prerequisite. |
 | Prompt | [`prompts/callimachus.md`](../prompts/callimachus.md) | The `/callimachus` slash-command body — disciplines + handoff to the skill. |
 | Callimachus skill | [`skills/callimachus/SKILL.md`](../skills/callimachus/SKILL.md) | The 9-step loop, interactive gates, and screening discipline. |
 | Hypatia skill | [`skills/hypatia/SKILL.md`](../skills/hypatia/SKILL.md) | Findings, gaps, and literature-backed opportunities from completed reviews. |
->>>>>>> devin/1789827103-hypathia
 | Tools | [`skills/callimachus/scripts/`](../skills/callimachus/scripts/) | The deterministic Python I/O scripts (below). |
 | Schema | [`skills/callimachus/references/ledger_schema.md`](../skills/callimachus/references/ledger_schema.md) | The ledger's JSON contract + invariants. |
 | Ledger | `<base>/<slug>/ledger.json` (runtime) | Durable per-review state in one self-contained folder; the single source of truth. |
