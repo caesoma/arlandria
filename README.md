@@ -1,27 +1,24 @@
 <p align="center">The open-source semi-automated literature-review agent, built on Pi.</p>
 
 ```text
-██  ▄█▀             ▀█▄        ▀█▄      ▄▀
-██▄█▀     ▄▄▄ ▄▄     ▀█▄        ▀█▄     ▄▄    ▄▄  ▄▄    ▄▄▄ ▄▄ ▄▄      ▄   ▄▄▄▄▄    ▄▄▄▄▄
-███▄     ██  ██     ██▀█▄      ██▀█▄    ██    ██  ██   ██  ██   ▀█▄  ▄█▀  ██   ██  ██   ▀▀
-██ ▀█▄   ██  ██    ██  ▀█▄    ██  ▀█▄   ██    ██  ██   ██  ██    ▀█▄▄█▀   ██   ██  ▀█▄▄▄▄
-██   ██  ▀█▄▄▀█▄  ██    ▀█▄  ██    ▀█▄  ▀█▄▄  ██▀▄█▀▄  ▀█▄▄▀█▄   ▄█▀▀█▄   ▀█▄▄▄█▀       ██
-                                              ██                ▄█▀  ▀█▄               ▀▀
-                                              ▀▀                ▀      ▀▀
-
- ██████  █████  ██      ██      ██ ███    ███  █████   ██████ ██   ██ ██    ██ ███████
-██      ██   ██ ██      ██      ██ ████  ████ ██   ██ ██      ██   ██ ██    ██ ██
-██      ███████ ██      ██      ██ ██ ████ ██ ███████ ██      ███████ ██    ██ ███████
-██      ██   ██ ██      ██      ██ ██  ██  ██ ██   ██ ██      ██   ██ ██    ██      ██
- ██████ ██   ██ ███████ ███████ ██ ██      ██ ██   ██  ██████ ██   ██  ██████  ███████
+ ▇▇▇▇▇  ▇▇▇▇▇▇  ▇▇       ▇▇▇▇▇  ▇▇   ▇▇ ▇▇▇▇▇▇  ▇▇▇▇▇▇  ▇▇▇▇▇▇▇  ▇▇▇▇▇
+▇▇   ▇▇ ▇▇   ▇▇ ▇▇      ▇▇   ▇▇ ▇▇▇  ▇▇ ▇▇   ▇▇ ▇▇   ▇▇   ▇▇▇   ▇▇   ▇▇
+▇▇▇▇▇▇▇ ▇▇▇▇▇▇  ▇▇      ▇▇▇▇▇▇▇ ▇▇ ▇ ▇▇ ▇▇   ▇▇ ▇▇▇▇▇▇    ▇▇▇   ▇▇▇▇▇▇▇
+▇▇   ▇▇ ▇▇  ▇▇  ▇▇      ▇▇   ▇▇ ▇▇  ▇▇▇ ▇▇   ▇▇ ▇▇  ▇▇    ▇▇▇   ▇▇   ▇▇
+▇▇   ▇▇ ▇▇   ▇▇ ▇▇▇▇▇▇▇ ▇▇   ▇▇ ▇▇   ▇▇ ▇▇▇▇▇▇  ▇▇   ▇▇ ▇▇▇▇▇▇▇ ▇▇   ▇▇
 ```
 
 ---
 
+Arlandria provides exactly two skills:
+
+- **`callimachus`** — run the full literature review with `/callimachus <question>`.
+- **`hypatia`** — synthesize completed Callimachus results with `/hypatia <review folder>`.
+
 ### What you type → what happens
 
 ```
-$ cal "review the literature on CRISPR off-target detection"
+$ arlandria "review the literature on CRISPR off-target detection"
 → Drafts inclusion criteria with you, searches OpenAlex (+ more when warranted),
   screens every abstract, reports clusters + gaps, and asks you to sharpen scope.
 
@@ -34,8 +31,9 @@ $ "which 3 papers cover the in-vivo detection mechanism best?"
 
 ### Install
 
-**Prerequisites.** Node/Pi, plus [`uv`](https://docs.astral.sh/uv/) — the Python primitives
-self-bootstrap through it, so it is the only extra host requirement (no `pip`, no venv):
+**Prerequisites.** Node 22.19–24.x (Node 24 recommended), plus
+[`uv`](https://docs.astral.sh/uv/) — the Python primitives self-bootstrap through it
+(no `pip`, no venv). Arlandria includes Pi 0.85.1:
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -46,14 +44,22 @@ The branded launcher checks for `uv` on start and prints this hint if it is miss
 **As a pi-based, standalone CLI.**
 
 ```bash
-curl -fsSL <your-host>/install | bash    # or: npm install -g arlandria
+npm install -g arlandria
 ```
 
-`cal` (alias of `arlandria`) prints the banner and launches Pi with the callimachus skill on the path.
+`arlandria` prints the banner and launches Pi with the `callimachus` and `hypatia` skills and commands.
+It prefers its bundled Pi over any system installation.
+
+To run a checkout without a global installation:
+
+```bash
+npm ci
+npm start
+```
 
 
-**As a Pi package.** If you don't want to perform an installation of the package, Callimachis can be added to a standard Pi harness as a skill package.
-Add to your Pi settings so the skill is auto-discovered:
+**As a Pi package.** Arlandria can also be loaded by an existing Pi 0.85.1 installation.
+Add it to your Pi settings so both skills are discovered:
 
 ```json
 { "packages": ["npm:arlandria"] }
@@ -122,21 +128,74 @@ Two steps are **interactive gates** — the LLM proposes, then exchanges and rev
 8. **Export** — BibTeX + CSV of the included set, as soon as abstract screening converges (in hand within the hour). Re-runnable.
 9. **Full-text curation** — asynchronously over later sessions, fetch and read papers and record final verdicts with `--by human`. Never blocks.
 
-### Layout
+### Hypatia: synthesis after Callimachus
+
+The bundled launcher and Pi package expose:
+
+```text
+/hypatia /path/to/completed-review
+/hypatia question What does the literature establish about ...?
+```
+
+Hypatia produces a cited Markdown report, presentation brief, a minimal six-slide
+LaTeX Beamer deck, SVG evidence and opportunity matrices, gap-to-direction diagram,
+and review-flow visual. The deck summarizes the approved Callimachus criteria and
+Hypatia's findings, gaps, feasibility, and limitations. Its standalone `slides.tex`
+can be compiled with LuaLaTeX; generating it requires no TeX installation. Findings
+and research directions trace to exact passages. Feasibility uses the researcher's
+stated resources; an empty low-effort shortlist is a valid result.
+
+**Callimachus must finish all nine stages first.** Its early reading list is
+insufficient. Missing or incomplete research is delegated to Callimachus, which
+retains its interactive criteria, triage, and final curation decisions.
+Use `/callimachus-approve criteria|triage|curation <review folder>` at those gates.
+The final gate validates a source registry and publishes a sealed completion
+snapshot before Hypatia runs.
+
+Hypatia runs in a separate Pi SDK session with only snapshot-reading,
+evidence-writing, rendering, and upstream-request tools. It inherits no shell,
+search tool, filesystem reader, extensions, skills, or project instructions.
+Any requested refresh returns to Callimachus and waits for a new completed result.
+The configured Pi model/authentication is reused for synthesis.
+
+See the [skill](skills/hypatia/SKILL.md) and
+[completion and evidence contracts](skills/hypatia/references/contracts.md)
+for setup, schemas, access limitations, resume behavior, and output locations.
+
+### Development checks
+
+Use Node 24 (`nvm use`, as specified by `.nvmrc`) and `uv`:
+
+```bash
+npm install
+npm run check
+uv run --with ruff==0.14.8 ruff check --select E9,F63,F7,F82 skills/callimachus/scripts/pdf_extract.py
+```
+
+The native Node tests exercise deterministic primitives and the actual Pi SDK
+tool boundary without making a model request. A live literature run additionally
+requires the researcher's Pi model authentication, search credentials, papers,
+and human gate decisions.
+
+### Package layout
 
 ```
 arlandria/
 ├── logo.mjs                      # the lettering
 ├── package.json                  # pi-package: ships skills/ + prompts/ + extensions/ via the "pi" field
-├── bin/arlandria.js              # branded launcher (alias: cal): banner, then hands off to Pi
-├── extensions/litreview/         # registers the /litreview + /literature-review slash commands
-├── prompts/litreview.md          # the /litreview prompt workflow
+├── bin/arlandria.js              # arlandria launcher: banner, then hands off to Pi
+├── extensions/callimachus/       # registers /callimachus
+├── extensions/hypatia/           # isolated synthesis and Callimachus approval commands
+├── prompts/callimachus.md        # the /callimachus prompt workflow
 ├── skills/callimachus/
 │   ├── SKILL.md                  # the 9-step workflow the LLM follows
 │   ├── references/ledger_schema.md
 │   └── scripts/                  # search · dedupe · ledger (write-tool)
 │                                  #  · resolve · pdf_extract · export
+├── skills/hypatia/
+│   ├── SKILL.md                  # grounded synthesis of completed Callimachus results
+│   └── references/contracts.md
 ├── docs/                         # architecture.md · arlandria-spec.md
-├── .arlandria/                   # settings.json + SYSTEM.md
+├── .arlandria/                    # settings.json + SYSTEM.md
 └── scripts/install/              # install.sh · install.ps1
 ```

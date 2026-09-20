@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 // Branded launcher. Prints the banner, then starts an interactive Pi session
-// with the Arlandria skill + command extension on the path, so `/litreview`
-// and `/literature-review` are available immediately. No build step: the
-// extension is TypeScript loaded by Pi via jiti, and this launcher is plain JS.
+// with the Callimachus and Hypatia skills and command extensions.
+// No build step: Pi loads TypeScript extensions via jiti.
 import { spawn, spawnSync } from "node:child_process";
-import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
@@ -13,21 +11,25 @@ const here = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(here, "..");
 
 const { ARLANDRIA_ASCII_LOGO_TEXT } = await import(pathToFileURL(join(pkgRoot, "logo.mjs")).href);
-if (!process.env.ARLANDRIA_QUIET) {
+if (!process.env.CALLIMACHUS_QUIET) {
   console.log("\n" + ARLANDRIA_ASCII_LOGO_TEXT + "\n");
 }
 
 // Prefer the Pi binary bundled as our dependency; fall back to a global `pi`.
 function bundledPi() {
   try {
-    const req = createRequire(import.meta.url);
-    const metaPath = req.resolve("@earendil-works/pi-coding-agent/package.json");
-    const meta = JSON.parse(readFileSync(metaPath, "utf8"));
-    let bin = meta.bin;
-    if (bin && typeof bin === "object") bin = bin.pi ?? Object.values(bin)[0];
-    if (typeof bin === "string") {
-      const p = join(dirname(metaPath), bin);
-      if (existsSync(p)) return p;
+    let directory = dirname(fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent")));
+    while (dirname(directory) !== directory) {
+      const metaPath = join(directory, "package.json");
+      if (existsSync(metaPath)) {
+        const meta = JSON.parse(readFileSync(metaPath, "utf8"));
+        if (meta.name === "@earendil-works/pi-coding-agent") {
+          const bin = typeof meta.bin === "string" ? meta.bin : meta.bin?.pi;
+          const path = typeof bin === "string" ? join(directory, bin) : null;
+          return path && existsSync(path) ? path : null;
+        }
+      }
+      directory = dirname(directory);
     }
   } catch {}
   return null;
@@ -53,9 +55,11 @@ function ensureUv() {
 
 ensureUv();
 
-const skill = join(pkgRoot, "skills", "callimachus");
-const extension = join(pkgRoot, "extensions", "litreview", "index.ts");
-const piArgs = ["-e", extension, "--skill", skill, ...process.argv.slice(2)];
+const callimachusSkill = join(pkgRoot, "skills", "callimachus");
+const callimachusExtension = join(pkgRoot, "extensions", "callimachus", "index.ts");
+const hypatiaExtension = join(pkgRoot, "extensions", "hypatia", "index.ts");
+const hypatiaSkill = join(pkgRoot, "skills", "hypatia");
+const piArgs = ["-e", callimachusExtension, "-e", hypatiaExtension, "--skill", callimachusSkill, "--skill", hypatiaSkill, ...process.argv.slice(2)];
 
 const bundled = bundledPi();
 const cmd = bundled ? process.execPath : "pi";

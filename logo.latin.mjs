@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 export const ARLANDRIA_ASCII_LOGO = [
 	" \u2588\u2588\u2588\u2588\u2588\u2588  \u2588\u2588\u2588\u2588\u2588  \u2588\u2588      \u2588\u2588      \u2588\u2588 \u2588\u2588\u2588    \u2588\u2588\u2588  \u2588\u2588\u2588\u2588\u2588   \u2588\u2588\u2588\u2588\u2588\u2588 \u2588\u2588   \u2588\u2588 \u2588\u2588    \u2588\u2588 \u2588\u2588\u2588\u2588\u2588\u2588\u2588",
 	"\u2588\u2588      \u2588\u2588   \u2588\u2588 \u2588\u2588      \u2588\u2588      \u2588\u2588 \u2588\u2588\u2588\u2588  \u2588\u2588\u2588\u2588 \u2588\u2588   \u2588\u2588 \u2588\u2588      \u2588\u2588   \u2588\u2588 \u2588\u2588    \u2588\u2588 \u2588\u2588",
@@ -9,3 +10,6 @@ export const ARLANDRIA_ASCII_LOGO = [
 export const ARLANDRIA_ASCII_LOGO_TEXT = ARLANDRIA_ASCII_LOGO.join("\n");
 
 export const ARLANDRIA_LOGO_HTML = `<style>@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');.logo{width:auto!important;height:auto!important;margin-bottom:16px!important}</style><span style="font-family:'VT323',monospace;font-size:48px;color:#c8a45c">arlandria</span>`;
+=======
+export * from "./logo.mjs";
+>>>>>>> devin/1789827103-hypathia

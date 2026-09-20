@@ -2,7 +2,7 @@
 
 Semi-automated literature-review agent built on the **Pi** coding-agent harness. A researcher poses a question in plain English; **Pi's LLM** turns it into database queries, screens every retrieved paper for relevance, records its decisions to a ledger, and works *with* the researcher — who is the final curator and will read the actual papers, on their own timeline. Primary deliverable: the included set as BibTeX + CSV, **in hand within an hour** of converging on criteria — the review then continues asynchronously over days or weeks.
 
-It runs as a **persistent branded session** (`cal`): the review is one workflow inside an ongoing Pi session the researcher can step into, step out of, interrogate, and resume — without leaving `pi`.
+It runs as a **persistent branded session** (`arlandria`): the review is one workflow inside an ongoing Pi session the researcher can step into, step out of, interrogate, and resume — without leaving `pi`.
 
 This is the complete, settled spec. There are no open design questions. Implementation is delegated (e.g. to Claude Code); this document is the contract.
 
@@ -77,7 +77,7 @@ Available on any turn and in any later session, all grounded in the ledger:
 
 ### Resume — returning days or weeks later
 
-The ledger persists everything, so reopening `cal` and pointing at an existing review supports three distinct modes:
+The ledger persists everything, so reopening `arlandria` and pointing at an existing review supports three distinct modes:
 
 1. **Curate (same ledger).** Record full-text verdicts on papers now read, override earlier calls, then re-export. This is the ongoing tail of step 9.
 2. **Refine / expand (same ledger).** Re-enter the loop at step 2 (change criteria → re-screen) or step 3 (add query variants → widen coverage) against the existing ledger. Prior `human` decisions stay locked throughout; only `llm` decisions are revisited.
@@ -209,11 +209,19 @@ One JSON file per review (`<base>/<slug>/ledger.json`) — the durable artifact,
 
 ## 6. Package delta
 
+<<<<<<< HEAD
 The repo is a Feynman-style **pi-package**: `arlandria` lettering (`logo.mjs`), `package.json` wiring `skills/` + `prompts/` into Pi via the `"pi"` field, a branded `bin` (`arlandria`, alias `cal`), `.arlandria/` config, and `scripts/install/`. The current contents diverge from this spec; the delta to reconcile:
 
 **Entry point — `cal` is a persistent branded session.**
 - `bin/arlandria.js` launches the **interactive** Pi REPL with the skill preloaded and the banner printed — and **stays** in the session. It does **not** run a single task and exit. The review is the `/litreview` workflow invoked *within* the running session; between review turns the researcher can do any other Pi work and can interrogate/override the ledger at any point.
 - The skill remains usable from a plain `pi` (install the package as a Pi package: `"packages": ["npm:arlandria"]`), but the shipped surface is the persistent `cal` session.
+=======
+The repo is a Feynman-style **pi-package**: `callimachus` lettering (`logo.mjs`), `package.json` wiring `skills/` + `prompts/` into Pi via the `"pi"` field, a branded `bin` (`arlandria`), `.arlandria/` config, and `scripts/install/`. The current contents diverge from this spec; the delta to reconcile:
+
+**Entry point — `arlandria` is a persistent branded session.**
+- `bin/arlandria.js` launches the **interactive** Pi REPL with the skills preloaded and the banner printed — and **stays** in the session. It does **not** run a single task and exit. The review is the `/callimachus` workflow invoked *within* the running session; between review turns the researcher can do any other Pi work and can interrogate/override the ledger at any point.
+- The skills remain usable from a plain `pi` (install the package as a Pi package: `"packages": ["npm:arlandria"]`), but the shipped surface is the persistent `arlandria` session.
+>>>>>>> devin/1789827103-hypathia
 
 **Delete** (rejected architecture — a competing deterministic orchestrator + a redundant scorer):
 - `skills/callimachus/scripts/review.py`
@@ -229,7 +237,11 @@ The repo is a Feynman-style **pi-package**: `arlandria` lettering (`logo.mjs`), 
 
 **Rewrite:**
 - `skills/callimachus/SKILL.md` — the 9-step loop (§3) as **LLM instructions**: orchestrate, call scripts for I/O and ledger writes, do the criteria-drafting, abstract-reading, reporting/asking, and refining yourself. Encode the **interactive gates** (propose → exchange → revise → advance only on explicit release), **curation** (interrogate + override on any turn; record overrides as `human`), the **export-then-async-read** ordering (export at step 8, never block on reading), and the three **Resume** modes. No script driver.
+<<<<<<< HEAD
 - `prompts/litreview.md` — align to the same loop; `/litreview` is the in-session entry.
+=======
+- `prompts/callimachus.md` — align to the same loop; `/callimachus` is the in-session entry.
+>>>>>>> devin/1789827103-hypathia
 
 **Configuration cleanup** (consequences of deleting `assess.mjs`):
 - Drop the `@mariozechner/pi-ai` (or `@earendil-works/pi-ai`) **dependency** from `package.json`. It was only for the scorer; the LLM's model comes from Pi itself (`pi-coding-agent`), which remains the harness.
@@ -249,4 +261,4 @@ Explicitly out of scope, to prevent reintroduction:
 - No overwriting human curation — the re-screen never revises `decided_by: human` records.
 - **No blocking on the researcher's reading** — the deliverable export (step 8) precedes full-text reading; the LLM never waits on step 9, and export is re-runnable, not terminal.
 - No synthesis prose and no PRISMA artifact in v1 — deliverable is BibTeX + CSV; PRISMA is a later derived view.
-- `cal` does not run-and-exit — it is a persistent interactive session.
+- `arlandria` does not run-and-exit — it is a persistent interactive session.

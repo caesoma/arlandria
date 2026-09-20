@@ -1,9 +1,13 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
+<<<<<<< HEAD:extensions/litreview/index.ts
 // Arlandria registers two first-class slash commands as aliases for one
 // workflow, so you type `/litreview` or `/literature-review` instead of
 // `/skill:callimachus`. The command kicks the agent off on the skill's
 // 9-step loop; the workflow itself lives in skills/callimachus/SKILL.md.
+=======
+// `/callimachus` starts the workflow in skills/callimachus/SKILL.md.
+>>>>>>> devin/1789827103-hypathia:extensions/callimachus/index.ts
 
 function kickoff(args: string): string {
   const q = args.trim();
@@ -29,6 +33,5 @@ export default function arlandria(pi: ExtensionAPI): void {
       pi.sendUserMessage(kickoff(args), { deliverAs: "followUp" });
     },
   };
-  pi.registerCommand("litreview", definition);
-  pi.registerCommand("literature-review", definition);
+  pi.registerCommand("callimachus", definition);
 }

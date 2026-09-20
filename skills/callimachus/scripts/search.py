@@ -7,42 +7,25 @@
 # ///
 """Search one bibliographic backend; print lean normalized records as JSON to stdout.
 
-This is the retrieval mouth of the pipeline - the one script that talks to outside databases.
-Everything downstream (dedupe -> screening -> export) works off the JSON this prints, so its single
-job is: hit ONE database and translate that database's idiosyncratic response into the project's
-shared "lean search record" shape. No screening, no ledger writes, no decisions - pure fetch-and-
-normalize. Keeping all the database-specific quirks isolated here is what lets the rest of the code
-stay database-agnostic.
+This is the retrieval mouth of the pipeline - the one script that talks to outside databases. Everything downstream (dedupe -> screening -> export) works off the JSON this prints, so its single job is: hit ONE database and translate that database's idiosyncratic response into the project's shared "lean search record" shape. No screening, no ledger writes, no decisions - pure fetch-and- normalize. Keeping all the database-specific quirks isolated here is what lets the rest of the code stay database-agnostic.
 
-Where it sits in the workflow (step 3, Query): the LLM writes several query variants, runs this
-once per (backend x query) pair, and saves each output to a file; dedupe.py then merges those files
-into the ledger. One backend per call by design - choosing which databases to fan out across is
-for the LLM to decide (per SKILL.md); this script just executes the one it was asked for.
+Where it sits in the workflow (step 3, Query): the LLM writes several query variants, runs this once per (backend x query) pair, and saves each output to a file; dedupe.py then merges those files into the ledger. One backend per call by design - choosing which databases to fan out across is for the LLM to decide (per SKILL.md); this script just executes the one it was asked for.
 
 How a backend is wired:
   A backend is a function `(query, args) -> [search_record]` registered under a name by the
-  `@backend("name")` decorator, which drops it into the BACKENDS dispatch table that `main` looks up.
-  Adding a database is therefore exactly one decorated function that maps that database's fields onto
-  search_record() (defined in _common.py). The backends below are the only database-specific code in
-  the project. The envelope printed to stdout is:
+  `@backend("name")` decorator, which drops it into the BACKENDS dispatch table that `main` looks up. Adding a database is therefore exactly one decorated function that maps that database's fields onto search_record() (defined in _common.py). The backends below are the only database-specific code in the project. The envelope printed to stdout is:
     {"source": <name>, "query": <str>, "n": <count>, "records": [<search_record>, ...], "cost_usd"?}
 
 Backend tiers (which to call is for the LLM to decide, per SKILL.md - this script only runs one):
-  - openalex   : the default backbone - a free, cross-disciplinary catalogue of scholarly works.
-                 Requires OPENALEX_API_KEY (or --no-api-key for the grace-period keyless pool).
-                 Returns closed-access works too; they are screened on the abstract, never dropped here.
-  - arxiv / biorxiv / medrxiv : "freshness" backends - the open preprint servers, queried only when a
-                 question is recency-sensitive, because OpenAlex lags them by days (--since required).
+  - openalex   : the default backbone - a free, cross-disciplinary catalogue of scholarly works. Requires OPENALEX_API_KEY (or --no-api-key for the grace-period keyless pool). Returns closed-access works too; they are screened on the abstract, never dropped here.
+  - arxiv / biorxiv / medrxiv : "freshness" backends - the open preprint servers, queried only when a question is recency-sensitive, because OpenAlex lags them by days (--since required).
   - europepmc / pubmed / semantic_scholar : domain / general backends, added when the field fits.
   - inspire_hep / nasa_ads / repec / philsci / chemrxiv : stubs (interface ready; not implemented).
 
 Vocabulary you'll meet below (so the inline comments can stay short):
-  - polite pool    : sending a contact email (mailto) to NCBI / OpenAlex / etc. earns higher, more
-                     reliable rate limits. Wired once in _common.py; no backend has to do it itself.
-  - oa_status      : an open-access "colour" - open|closed|green|gold|hybrid|bronze. We carry it but
-                     never filter on it: a closed paper still has an abstract worth screening.
-  - inverted index : OpenAlex ships abstracts as {word: [positions]} (a licensing work-around);
-                     _reconstruct_abstract() turns that back into readable prose.
+  - polite pool: sending a contact email (mailto) to NCBI / OpenAlex / etc. earns higher, more reliable rate limits. Wired once in _common.py; no backend has to do it itself.
+  - oa_status: an open-access "colour" - open|closed|green|gold|hybrid|bronze. We carry it but never filter on it: a closed paper still has an abstract worth screening.
+  - inverted index : OpenAlex ships abstracts as {word: [positions]} (a licensing work-around); _reconstruct_abstract() turns that back into readable prose.
   - referenced_works / snowballing : the works a paper cites; kept only as a seed for later
                      citation-chasing ("snowballing") - this script never follows them.
 
@@ -313,8 +296,7 @@ def main():
     ap.add_argument("--source", required=True, choices=sorted(BACKENDS))
     ap.add_argument("--query", required=True)
     ap.add_argument("--limit", type=int, default=50)
-    ap.add_argument("--since", help="ISO date floor YYYY-MM-DD; freshness backends use it as the "
-                                    "lower bound (required by biorxiv/medrxiv).")
+    ap.add_argument("--since", help="ISO date floor YYYY-MM-DD; freshness backends use it as the ""lower bound (required by biorxiv/medrxiv).")
     ap.add_argument("--filter", help="OpenAlex filter passthrough, e.g. 'type:preprint'.")
     ap.add_argument("--no-api-key", action="store_true",
                     help="OpenAlex: use the keyless polite pool instead of requiring OPENALEX_API_KEY "
