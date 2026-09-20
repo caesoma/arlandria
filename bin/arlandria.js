@@ -11,7 +11,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(here, "..");
 
 const { ARLANDRIA_ASCII_LOGO_TEXT } = await import(pathToFileURL(join(pkgRoot, "logo.mjs")).href);
-if (!process.env.CALLIMACHUS_QUIET) {
+if (!process.env.ARLANDRIA_QUIET) {
   console.log("\n" + ARLANDRIA_ASCII_LOGO_TEXT + "\n");
 }
 

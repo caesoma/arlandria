@@ -12,7 +12,7 @@ function kickoff(args: string): string {
     "",
     "Honor these disciplines:",
     "- Interactive gates (steps 2 and 6): propose, then discuss and revise across as many turns as I want; advance only on my explicit release.",
-    "- Screen every retrieved abstract individually; nothing ranked or skipped. Your screening is a provisional first pass, recorded with `ledger.py decide --by agent`.",
+    "- Screen every retrieved abstract individually; nothing ranked or skipped. Your screening is a provisional first pass, recorded with `ledger.py decide --by llm`.",
     "- I am the final curator: record my overrides with `--by human`, and never overwrite a human decision.",
     "- Export the list as soon as abstract screening converges (step 8); full-text reading is asynchronous (step 9) - never block on it.",
     "- Follow-ups (filter, which-papers-cover-X-best, resume) are reads over the ledger, not new searches.",
