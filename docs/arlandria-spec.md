@@ -209,19 +209,11 @@ One JSON file per review (`<base>/<slug>/ledger.json`) — the durable artifact,
 
 ## 6. Package delta
 
-<<<<<<< HEAD
-The repo is a Feynman-style **pi-package**: `arlandria` lettering (`logo.mjs`), `package.json` wiring `skills/` + `prompts/` into Pi via the `"pi"` field, a branded `bin` (`arlandria`, alias `cal`), `.arlandria/` config, and `scripts/install/`. The current contents diverge from this spec; the delta to reconcile:
-
-**Entry point — `cal` is a persistent branded session.**
-- `bin/arlandria.js` launches the **interactive** Pi REPL with the skill preloaded and the banner printed — and **stays** in the session. It does **not** run a single task and exit. The review is the `/litreview` workflow invoked *within* the running session; between review turns the researcher can do any other Pi work and can interrogate/override the ledger at any point.
-- The skill remains usable from a plain `pi` (install the package as a Pi package: `"packages": ["npm:arlandria"]`), but the shipped surface is the persistent `cal` session.
-=======
 The repo is a Feynman-style **pi-package**: `callimachus` lettering (`logo.mjs`), `package.json` wiring `skills/` + `prompts/` into Pi via the `"pi"` field, a branded `bin` (`arlandria`), `.arlandria/` config, and `scripts/install/`. The current contents diverge from this spec; the delta to reconcile:
 
 **Entry point — `arlandria` is a persistent branded session.**
 - `bin/arlandria.js` launches the **interactive** Pi REPL with the skills preloaded and the banner printed — and **stays** in the session. It does **not** run a single task and exit. The review is the `/callimachus` workflow invoked *within* the running session; between review turns the researcher can do any other Pi work and can interrogate/override the ledger at any point.
 - The skills remain usable from a plain `pi` (install the package as a Pi package: `"packages": ["npm:arlandria"]`), but the shipped surface is the persistent `arlandria` session.
->>>>>>> devin/1789827103-hypathia
 
 **Delete** (rejected architecture — a competing deterministic orchestrator + a redundant scorer):
 - `skills/callimachus/scripts/review.py`
@@ -237,11 +229,7 @@ The repo is a Feynman-style **pi-package**: `callimachus` lettering (`logo.mjs`)
 
 **Rewrite:**
 - `skills/callimachus/SKILL.md` — the 9-step loop (§3) as **LLM instructions**: orchestrate, call scripts for I/O and ledger writes, do the criteria-drafting, abstract-reading, reporting/asking, and refining yourself. Encode the **interactive gates** (propose → exchange → revise → advance only on explicit release), **curation** (interrogate + override on any turn; record overrides as `human`), the **export-then-async-read** ordering (export at step 8, never block on reading), and the three **Resume** modes. No script driver.
-<<<<<<< HEAD
-- `prompts/litreview.md` — align to the same loop; `/litreview` is the in-session entry.
-=======
 - `prompts/callimachus.md` — align to the same loop; `/callimachus` is the in-session entry.
->>>>>>> devin/1789827103-hypathia
 
 **Configuration cleanup** (consequences of deleting `assess.mjs`):
 - Drop the `@mariozechner/pi-ai` (or `@earendil-works/pi-ai`) **dependency** from `package.json`. It was only for the scorer; the LLM's model comes from Pi itself (`pi-coding-agent`), which remains the harness.
